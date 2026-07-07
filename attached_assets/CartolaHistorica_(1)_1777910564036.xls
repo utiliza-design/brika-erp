@@ -1,0 +1,620 @@
+
+<table border="0" cellspacing="0" cellpadding="0" xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt">
+<tr height="35">
+<td>
+<img border="0" src="https://www.bancosecurity.cl/security/images/lg.gif" />
+</td>
+</tr>
+</table>
+<table border="0" cellspacing="0" cellpadding="0" xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt">
+<tr>
+<td align="left" colspan="2">
+<font face="verdana" size="2">
+<b>Cartola Cuenta Corriente</b>
+</font>
+</td>
+</tr>
+</table>
+<table width="100%" border="0" cellpadding="3" cellspacing="0" xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt">
+<tr bgcolor="#ffffff">
+<td align="left">
+<font face="verdana" size="1">
+<b>Empresa</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>número de cuenta</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>moneda</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>Página</b>
+</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="left">
+<font face="verdana" size="1">BRIKA SPA</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">916672240</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">PESOS</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="left">
+<font face="verdana" size="1">
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>número de cartola</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>desde</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>hasta</b>
+</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="left">
+<font face="verdana" size="1">
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0000000004</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">01/04/2026</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">30/04/2026</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="left">
+<font face="verdana" size="1">
+</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+<b>cartola anterior</b>
+</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="left">
+<font face="verdana" size="1">
+</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+<p>fecha 31/03/2026</p>
+</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+<b>saldo final </b>596458,00</font>
+</td>
+</tr>
+<td align="left">
+<font face="verdana" size="1">
+<b>su ejecutivo de cuenta es</b>
+</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+<b>línea de crédito</b>
+</font>
+</td>
+<tr bgcolor="#ffffff">
+<td align="left">
+<font face="verdana" size="1">DANIEL CASTRO GONZALEZ</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+<p>monto utilizado 0,00</p>
+</font>
+</td>
+</tr>
+</table>
+<table width="100%" border="0" cellpadding="3" cellspacing="0" xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt">
+<tr>
+<td align="left">
+<font face="verdana" size="1">
+<b>oficina </b>SUC. AGUSTINAS</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+<p>monto disponible 1000,00</p>
+</font>
+</td>
+</tr>
+<tr>
+<td align="left">
+<font face="verdana" size="1">
+<b>telefono </b>225842167</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">
+<p>vencimiento 30/05/2026</p>
+</font>
+</td>
+</tr>
+</table>
+<br xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt" />
+<table border="1" cellspacing="0" cellpadding="0" xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt">
+<tr>
+<td>
+<table border="1" cellspacing="0" cellpadding="0">
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">
+<b>fecha</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>descripción</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>número de documentos</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>cargos</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>abonos</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>saldos</b>
+</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">01/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">TRANSFERENCIA DESDE Mercado Pago DE BRIKA SPA</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">904726089</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">15200,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">4107765,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">07/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">27417,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">4135182,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">14/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">45134,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">4180316,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">15/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">TRANSFERENCIA DESDE Chile        DE BRIKA SpA</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">914191137</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">1500000,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">5680316,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">15/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">TRANSFERENCIA DESDE Chile        DE BRIKA SpA</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">914193963</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">500000,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">6180316,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">15/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">TRANSFERENCIA A Chile            PARA Agencia de Aduana Pedr</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">914194944</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">5949445,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">230871,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">16/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">72311,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">303182,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">20/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">17618,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">320800,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">21/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">62802,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">383602,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">22/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">PAGO PROVEEDORES</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">285600,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">669202,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">22/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">35092,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">704294,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">24/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">26426,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">730720,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">27/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">PAGO TARJETA CREDITO POR INTERNET</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">921375885</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">90256,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">640464,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">27/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">COMPRA USD POR INTERNET PARA PAGO T.CREDITO</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">921376060</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">63035,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">577429,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">27/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">PLAN EXTRA SOCIEDAD (UF 0.1800)</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">6064,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">571365,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">27/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">IVA EN COMISIONES/CUENTAS</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">1152,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">570213,00</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">29/04/2026</font>
+</td>
+<td align="left">
+<font face="verdana" size="1">ABONO REALIZADO POR TRANSBANK</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">000000000</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">0,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">26245,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">596458,00</font>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<br xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt" />
+<table border="1" cellspacing="0" cellpadding="0" xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt">
+<tr>
+<td align="left">
+<font face="verdana" size="1">
+<b>resúmen del período</b>
+</font>
+</td>
+</tr>
+<tr>
+<td>
+<table width="100%" border="0" cellpadding="3" cellspacing="0" class="Grid">
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">
+<b>saldo inicial</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>total cargos</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>total abonos</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+<b>saldo final</b>
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">
+</font>
+</td>
+</tr>
+<tr bgcolor="#ffffff">
+<td align="center">
+<font face="verdana" size="1">4092565,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">6109952,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">2613845,00</font>
+</td>
+<td align="center">
+<font face="verdana" size="1">596458,00</font>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<br xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt" />
+<table border="0" cellspacing="0" cellpadding="0" xmlns:ms="urn:schemas-microsoft-com:xslt" xmlns:vb="urn:the-xml-files:xslt">
+<tr>
+<td align="left">
+<font face="verdana" size="1">
+<b>La información entregada en línea está sujeta a confirmación.</b>
+</font>
+</td>
+</tr>
+</table>
