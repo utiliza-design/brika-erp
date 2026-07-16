@@ -22,7 +22,7 @@ function isXlsBuffer(buffer: Buffer): boolean {
 function parseXlsFalabella(buffer: Buffer): { headers: string[]; data: Record<string, unknown>[] } {
   const workbook = XLSX.read(buffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { header: 1, defval: "" }) as string[][];
+  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
 
   // Find header row (contains "Fecha")
   let headerRowIdx = -1;

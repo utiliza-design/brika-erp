@@ -1,5 +1,5 @@
-import { MySqlTable, InferSelectModel, InferInsertModel } from "drizzle-orm/mysql-core";
-import { eq } from "drizzle-orm";
+import { MySqlTable } from "drizzle-orm/mysql-core";
+import { eq, type InferSelectModel, type InferInsertModel } from "drizzle-orm";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import crypto from "crypto";
 

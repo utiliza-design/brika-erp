@@ -1089,7 +1089,7 @@ export default function FacturasRevisionPage() {
   });
 
   const estadoMutation = useMutation({
-    mutationFn: async ({ facturaKey, estado, cartolaMovementKey }: { facturaKey: string; estado: string; cartolaMovementKey?: string }) => {
+    mutationFn: async ({ facturaKey, estado, cartolaMovementKey }: { facturaKey: string; estado: "pendiente" | "pagado" | "propuesto"; cartolaMovementKey?: string }) => {
       return apiRequest("POST", `/api/facturas-revision/${encodeURIComponent(facturaKey)}`, { estado, cartolaMovementKey });
     },
     onMutate: async ({ facturaKey, estado }) => {

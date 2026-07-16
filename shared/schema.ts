@@ -2,14 +2,15 @@ import { sql } from "drizzle-orm";
 import { mysqlTable, varchar, timestamp, json, int, decimal, uniqueIndex, index, text } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import crypto from "crypto";
 
 export * from "./models/auth";
 
-export const fileTypeEnum = ["cartola", "cobranza", "fact_ventas", "fact_ventas_bsale", "fact_compras", "cartola_security", "cartola_falabella", "cartola_global66_clp", "cartola_global66_usd"] as const;
+export const fileTypeEnum = ["cartola", "cobranza", "fact_ventas", "fact_ventas_bsale", "fact_compras", "cartola_security", "cartola_falabella", "cartola_global66_clp", "cartola_global66_usd", "stock"] as const;
 export type FileType = typeof fileTypeEnum[number];
 
 export const uploadedFiles = mysqlTable("uploaded_files", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   fileType: varchar("file_type", { length: 50 }).notNull().$type<FileType>(),
   originalFilename: varchar("original_filename", { length: 255 }).notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
@@ -21,13 +22,13 @@ export const uploadedFiles = mysqlTable("uploaded_files", {
   index("uploaded_files_file_type_idx").on(table.fileType),
 ]);
 
+export type InsertUploadedFile = typeof uploadedFiles.$inferInsert;
+export type UploadedFile = typeof uploadedFiles.$inferSelect;
+
 export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).omit({
   id: true,
   uploadedAt: true,
 });
-
-export type InsertUploadedFile = z.infer<typeof insertUploadedFileSchema>;
-export type UploadedFile = typeof uploadedFiles.$inferSelect;
 
 export const CENTROS_DE_COSTOS = [
   "C-MARKETING Y PUBLICIDAD",
@@ -61,22 +62,22 @@ export const CENTROS_DE_COSTOS = [
 export type CentroCostos = typeof CENTROS_DE_COSTOS[number];
 
 export const centroCostosRules = mysqlTable("centro_costos_rules", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   pattern: varchar("pattern", { length: 255 }).notNull(),
   centroCostos: varchar("centro_costos", { length: 255 }).notNull(),
   matchType: varchar("match_type", { length: 50 }).notNull().default("contains"),
   priority: int("priority").notNull().default(0),
 });
 
+export type InsertCentroCostosRule = typeof centroCostosRules.$inferInsert;
+export type CentroCostosRule = typeof centroCostosRules.$inferSelect;
+
 export const insertCentroCostosRuleSchema = createInsertSchema(centroCostosRules).omit({
   id: true,
 });
 
-export type InsertCentroCostosRule = z.infer<typeof insertCentroCostosRuleSchema>;
-export type CentroCostosRule = typeof centroCostosRules.$inferSelect;
-
 export const centroCostosReviews = mysqlTable("centro_costos_reviews", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   movementKey: varchar("movement_key", { length: 255 }).notNull().unique(),
   revisado: int("revisado").notNull().default(0),
   centroCostos: varchar("centro_costos", { length: 255 }),
@@ -87,16 +88,16 @@ export const centroCostosReviews = mysqlTable("centro_costos_reviews", {
 export type CentroCostosReview = typeof centroCostosReviews.$inferSelect;
 
 export const facturaReviews = mysqlTable("factura_reviews", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   facturaKey: varchar("factura_key", { length: 255 }).notNull().unique(),
-  estado: varchar("estado", { length: 50 }).notNull().default("pendiente"),
+  estado: varchar("estado", { length: 50 }).notNull().default("pendiente").$type<"pendiente" | "pagado" | "propuesto">(),
   cartolaMovementKey: varchar("cartola_movement_key", { length: 255 }),
 });
 
 export type FacturaReview = typeof facturaReviews.$inferSelect;
 
 export const facturaAutoMatchRejections = mysqlTable("factura_auto_match_rejections", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   facturaKey: varchar("factura_key", { length: 255 }).notNull(),
   cartolaMovementKey: varchar("cartola_movement_key", { length: 255 }).notNull(),
   fechaRechazo: timestamp("fecha_rechazo").defaultNow().notNull(),
@@ -107,7 +108,7 @@ export const facturaAutoMatchRejections = mysqlTable("factura_auto_match_rejecti
 export type FacturaAutoMatchRejection = typeof facturaAutoMatchRejections.$inferSelect;
 
 export const facturaPropuestas = mysqlTable("factura_propuestas", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   facturaKey: varchar("factura_key", { length: 255 }).notNull(),
   tipo: varchar("tipo", { length: 50 }).notNull(),
   cartolaMovementKey: varchar("cartola_movement_key", { length: 255 }),
@@ -117,7 +118,7 @@ export const facturaPropuestas = mysqlTable("factura_propuestas", {
 export type FacturaPropuesta = typeof facturaPropuestas.$inferSelect;
 
 export const appUsers = mysqlTable("app_users", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   role: varchar("role", { length: 50 }).notNull().default("user"),
@@ -141,13 +142,13 @@ export const ventasAmigo = mysqlTable("ventas_amigo", {
   estado: varchar("estado", { length: 50 }).notNull().default("pendiente"),
 });
 
+export type InsertVentaAmigo = typeof ventasAmigo.$inferInsert;
+export type VentaAmigo = typeof ventasAmigo.$inferSelect;
+
 export const insertVentaAmigoSchema = createInsertSchema(ventasAmigo).omit({
   id: true,
   fechaRegistro: true,
 });
-
-export type InsertVentaAmigo = z.infer<typeof insertVentaAmigoSchema>;
-export type VentaAmigo = typeof ventasAmigo.$inferSelect;
 
 export const discontinuedProducts = mysqlTable("discontinued_products", {
   sku: varchar("sku", { length: 100 }).primaryKey(),
@@ -155,12 +156,12 @@ export const discontinuedProducts = mysqlTable("discontinued_products", {
   fechaDescontinuado: timestamp("fecha_descontinuado").defaultNow().notNull(),
 });
 
+export type InsertSampleProduct = typeof discontinuedProducts.$inferInsert;
+export type DiscontinuedProduct = typeof discontinuedProducts.$inferSelect;
+
 export const insertDiscontinuedProductSchema = createInsertSchema(discontinuedProducts).omit({
   fechaDescontinuado: true,
 });
-
-export type InsertSampleProduct = z.infer<typeof insertDiscontinuedProductSchema>;
-export type DiscontinuedProduct = typeof discontinuedProducts.$inferSelect;
 
 export const cartolaRows = mysqlTable("cartola_rows", {
   id: int("id").primaryKey().autoincrement(),
@@ -371,7 +372,7 @@ export const cartolaGlobal66ClpRows = mysqlTable("cartola_global66_clp_rows", {
 ]);
 
 export const clientes = mysqlTable("clientes", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   nombre: varchar("nombre", { length: 255 }).notNull(),
   razonSocial: varchar("razon_social", { length: 255 }),
   rut: varchar("rut", { length: 50 }),
@@ -385,16 +386,16 @@ export const clientes = mysqlTable("clientes", {
   index("clientes_nombre_idx").on(table.nombre),
 ]);
 
+export type InsertCliente = typeof clientes.$inferInsert;
+export type Cliente = typeof clientes.$inferSelect;
+
 export const insertClienteSchema = createInsertSchema(clientes).omit({
   id: true,
   createdAt: true,
 });
 
-export type InsertCliente = z.infer<typeof insertClienteSchema>;
-export type Cliente = typeof clientes.$inferSelect;
-
 export const emailLogs = mysqlTable("email_logs", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   facturaKey: varchar("factura_key", { length: 255 }).notNull(),
   clienteId: varchar("cliente_id", { length: 36 }),
   destinatarios: json("destinatarios").$type<string[]>().notNull(),
@@ -404,13 +405,13 @@ export const emailLogs = mysqlTable("email_logs", {
   enviadoAt: timestamp("enviado_at").defaultNow().notNull(),
 });
 
+export type InsertEmailLog = typeof emailLogs.$inferInsert;
+export type EmailLog = typeof emailLogs.$inferSelect;
+
 export const insertEmailLogSchema = createInsertSchema(emailLogs).omit({
   id: true,
   enviadoAt: true,
 });
-
-export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
-export type EmailLog = typeof emailLogs.$inferSelect;
 
 export const cartolaGlobal66UsdRows = mysqlTable("cartola_global66_usd_rows", {
   id: int("id").primaryKey().autoincrement(),

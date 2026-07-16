@@ -3,6 +3,7 @@ import { uploadedFiles, clientes, cobranzaRows } from "@shared/schema";
 import { DatabaseStorage } from "../storage";
 import { syncCobranza, syncFactCompras, isConfigured } from "../bsale";
 import { eq, like, and } from "drizzle-orm";
+import { insertBatch } from "../db-helpers";
 
 const storage = new DatabaseStorage();
 
@@ -180,23 +181,23 @@ async function syncCobranzaRowsTable() {
     if (liveRows.length === 0) continue;
     const toInsert = liveRows.map(r => ({
       uploadedFileId: f.id,
-      tipoDocumento: String(r["Tipo Documento"] ?? "") || null,
-      nDocumento: String(r["Nº Documento"] ?? "") || null,
-      rutCliente: String(r["Rut Cliente"] ?? "") || null,
-      fechaEmision: String(r["Fecha Emisión"] ?? "") || null,
-      montoExento: r["Monto Exento Documento"] != null ? String(r["Monto Exento Documento"]) : null,
-      montoNeto: r["Monto Neto Documento"] != null ? String(r["Monto Neto Documento"]) : null,
-      montoIva: r["Monto IVA Documento"] != null ? String(r["Monto IVA Documento"]) : null,
-      imptoEspecifico: null,
-      montoTotal: r["Monto Documento"] != null ? String(r["Monto Documento"]) : null,
-      fechaAcuse: null,
-      notificacionComercial: null,
-      fechaNotificacionComercial: null,
-      xmlRecepcionado: null,
-      estado: null,
+      tipoDocumento: String(r["Tipo Documento"] ?? "") || undefined,
+      nDocumento: String(r["Nº Documento"] ?? "") || undefined,
+      rutCliente: String(r["Rut Cliente"] ?? "") || undefined,
+      fechaEmision: String(r["Fecha Emisión"] ?? "") || undefined,
+      montoExento: r["Monto Exento Documento"] != null ? String(r["Monto Exento Documento"]) : undefined,
+      montoNeto: r["Monto Neto Documento"] != null ? String(r["Monto Neto Documento"]) : undefined,
+      montoIva: r["Monto IVA Documento"] != null ? String(r["Monto IVA Documento"]) : undefined,
+      imptoEspecifico: undefined,
+      montoTotal: r["Monto Documento"] != null ? String(r["Monto Documento"]) : undefined,
+      fechaAcuse: undefined,
+      notificacionComercial: undefined,
+      fechaNotificacionComercial: undefined,
+      xmlRecepcionado: undefined,
+      estado: undefined,
     }));
     if (toInsert.length > 0) {
-      await db.insert(cobranzaRows).values(toInsert).onConflictDoNothing();
+      await insertBatch(db, cobranzaRows, toInsert);
       totalInserted += toInsert.length;
     }
   }

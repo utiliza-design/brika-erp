@@ -226,7 +226,7 @@ export async function registerRoutes(
 
       const currentUser = req.user as any;
       const currentEmail = currentUser.claims?.email;
-      const targetUser = await storage.getAppUserById(req.params.id);
+      const targetUser = await storage.getAppUserById(req.params.id as string);
 
       if (!targetUser) {
         return res.status(404).json({ error: "Usuario no encontrado" });
@@ -235,7 +235,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No puedes modificar tu propio acceso" });
       }
 
-      const updated = await storage.updateAppUserStatus(req.params.id, status);
+      const updated = await storage.updateAppUserStatus(req.params.id as string, status);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -251,7 +251,7 @@ export async function registerRoutes(
 
       const currentUser = req.user as any;
       const currentEmail = currentUser.claims?.email;
-      const targetUser = await storage.getAppUserById(req.params.id);
+      const targetUser = await storage.getAppUserById(req.params.id as string);
 
       if (!targetUser) {
         return res.status(404).json({ error: "Usuario no encontrado" });
@@ -260,7 +260,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No puedes modificar tu propio rol" });
       }
 
-      const updated = await storage.updateAppUserRole(req.params.id, role);
+      const updated = await storage.updateAppUserRole(req.params.id as string, role);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -271,7 +271,7 @@ export async function registerRoutes(
     try {
       const currentUser = req.user as any;
       const currentEmail = currentUser.claims?.email;
-      const targetUser = await storage.getAppUserById(req.params.id);
+      const targetUser = await storage.getAppUserById(req.params.id as string);
 
       if (!targetUser) {
         return res.status(404).json({ error: "Usuario no encontrado" });
@@ -280,7 +280,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No puedes eliminar tu propio usuario" });
       }
 
-      await storage.deleteAppUser(req.params.id);
+      await storage.deleteAppUser(req.params.id as string);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3115,7 +3115,7 @@ export async function registerRoutes(
 
   app.post("/api/facturas-revision/:facturaKey/reject-automatch", requireAppAccess, async (req, res) => {
     try {
-      const facturaKey = decodeURIComponent(req.params.facturaKey);
+      const facturaKey = decodeURIComponent(req.params.facturaKey as string);
       const { cartolaMovementKey } = req.body ?? {};
       if (!cartolaMovementKey || typeof cartolaMovementKey !== "string") {
         return res.status(400).json({ error: "cartolaMovementKey requerido" });
@@ -3647,7 +3647,7 @@ export async function registerRoutes(
 
   app.delete("/api/discontinued-products/:sku", requireAppAccess, async (req, res) => {
     try {
-      const sku = req.params.sku;
+      const sku = req.params.sku as string;
       if (!sku) return res.status(400).json({ error: "SKU es requerido" });
       const deleted = await storage.removeDiscontinued(sku);
       if (!deleted) return res.status(404).json({ error: "SKU no encontrado" });
