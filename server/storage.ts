@@ -1,6 +1,7 @@
 import { uploadedFiles, type UploadedFile, type InsertUploadedFile, type FileType, centroCostosRules, type CentroCostosRule, type InsertCentroCostosRule, centroCostosReviews, facturaReviews, type FacturaReview, facturaPropuestas, type FacturaPropuesta, appUsers, type AppUser, type InsertAppUser, ventasAmigo, type VentaAmigo, type InsertVentaAmigo, cartolaRows, cartolaSecurityRows, cartolaFalabellaRows, cobranzaRows, factVentasRows, factComprasRows, stockRows, cartolaGlobal66ClpRows, cartolaGlobal66UsdRows, clientes, type Cliente, type InsertCliente, emailLogs, type EmailLog, type InsertEmailLog, discontinuedProducts, type DiscontinuedProduct, facturaAutoMatchRejections, type FacturaAutoMatchRejection } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql } from "drizzle-orm";
+import { hasValidEmail } from "./db-helpers";
 
 export interface IStorage {
   createUploadedFile(file: InsertUploadedFile): Promise<UploadedFile>;
@@ -735,7 +736,7 @@ export class DatabaseStorage implements IStorage {
     let skippedHadEmail = 0;
 
     for (const c of allClientes) {
-      const hasEmail = c.emails && c.emails.length > 0 && c.emails.some(e => e && e.trim());
+      const hasEmail = hasValidEmail(c.emails);
       if (hasEmail) { skippedHadEmail++; continue; }
       if (!c.rut || !c.rut.trim()) { skippedNoMatch++; continue; }
       const email = mostFrequentByRut.get(c.rut.toLowerCase().trim());

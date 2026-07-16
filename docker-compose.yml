@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: brika-mariadb-local
+    restart: always
+    env_file:
+      - .env.local
+    ports:
+      - "3309:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mariadb_data:
