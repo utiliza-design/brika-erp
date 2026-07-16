@@ -51,3 +51,10 @@ Al realizar la migración de datos (Tarea 3), se deben convertir de forma explí
 > Los siguientes usuarios de prueba fueron creados localmente en MariaDB para validar la autenticación local (Tarea 4). **Bajo ninguna circunstancia** deben ser importados o creados en el entorno de producción:
 > * `test@brika.cl` (contraseña: `testpassword` - cuenta administradora de prueba)
 > * `nullpass@brika.cl` (sin contraseña - cuenta de prueba para validación de robustez de nulos)
+
+> [!CAUTION]
+> Durante la importación de datos reales de producción (Tarea 3), a los siguientes 4 usuarios reales de la tabla `app_users` **se les asigna una contraseña local de desarrollo (`testlocal123`)** para permitir pruebas locales. **En el entorno de producción final, estas cuentas deben permanecer sin contraseña de test local**:
+> * `naty@buscalibre.com`
+> * `natalia@brikaorganics.cl`
+> * `colorina00@gmail.com`
+> * `natyjelen@gmail.com`
