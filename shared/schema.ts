@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { mysqlTable, varchar, integer, timestamp, json, int, decimal, uniqueIndex, index, text } from "drizzle-orm/mysql-core";
+import { mysqlTable, varchar, timestamp, json, int, decimal, uniqueIndex, index, text } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -13,7 +13,7 @@ export const uploadedFiles = mysqlTable("uploaded_files", {
   fileType: varchar("file_type", { length: 50 }).notNull().$type<FileType>(),
   originalFilename: varchar("original_filename", { length: 255 }).notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-  rowCount: integer("row_count").notNull().default(0),
+  rowCount: int("row_count").notNull().default(0),
   status: varchar("status", { length: 50 }).notNull().default("processed"),
   headers: json("headers").$type<string[]>(),
   data: json("data"),
@@ -65,7 +65,7 @@ export const centroCostosRules = mysqlTable("centro_costos_rules", {
   pattern: varchar("pattern", { length: 255 }).notNull(),
   centroCostos: varchar("centro_costos", { length: 255 }).notNull(),
   matchType: varchar("match_type", { length: 50 }).notNull().default("contains"),
-  priority: integer("priority").notNull().default(0),
+  priority: int("priority").notNull().default(0),
 });
 
 export const insertCentroCostosRuleSchema = createInsertSchema(centroCostosRules).omit({
@@ -78,7 +78,7 @@ export type CentroCostosRule = typeof centroCostosRules.$inferSelect;
 export const centroCostosReviews = mysqlTable("centro_costos_reviews", {
   id: varchar("id", { length: 36 }).primaryKey(),
   movementKey: varchar("movement_key", { length: 255 }).notNull().unique(),
-  revisado: integer("revisado").notNull().default(0),
+  revisado: int("revisado").notNull().default(0),
   centroCostos: varchar("centro_costos", { length: 255 }),
   nDocumentoOverride: varchar("n_documento_override", { length: 100 }),
   fechaCobroOverride: varchar("fecha_cobro_override", { length: 100 }),
@@ -135,9 +135,9 @@ export const ventasAmigo = mysqlTable("ventas_amigo", {
   fechaRegistro: timestamp("fecha_registro").defaultNow().notNull(),
   fechaCompra: varchar("fecha_compra", { length: 50 }).notNull(),
   nombre: varchar("nombre", { length: 255 }).notNull(),
-  monto: integer("monto").notNull(),
-  unidades: integer("unidades").notNull(),
-  costoProducto: integer("costo_producto"),
+  monto: int("monto").notNull(),
+  unidades: int("unidades").notNull(),
+  costoProducto: int("costo_producto"),
   estado: varchar("estado", { length: 50 }).notNull().default("pendiente"),
 });
 
