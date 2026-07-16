@@ -1,16 +1,68 @@
+import React, { useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SiGoogle } from "react-icons/si";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const params = new URLSearchParams(location.split("?")[1] || "");
   const isDenied = params.get("denied") === "true";
   const isRevoked = params.get("revoked") === "true";
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setErrorMsg("Por favor, completa todos los campos.");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: email,
+          password: password,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Acceso exitoso",
+          description: "Redirigiendo a la plataforma...",
+        });
+        // Forzamos recarga de página para refrescar el estado de sesión
+        window.location.href = "/";
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        setErrorMsg(errData.message || "Credenciales inválidas o acceso no autorizado.");
+        setPassword(""); // Limpiar input de contraseña por seguridad
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      setErrorMsg("Error de red. No se pudo conectar con el servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex">
+      {/* Panel Izquierdo Informativo */}
       <div className="hidden lg:flex lg:w-1/2 bg-gray-900 flex-col justify-between p-12">
         <div className="flex items-center gap-3">
           <FileSpreadsheet className="h-8 w-8 text-white" />
@@ -27,6 +79,7 @@ export default function LoginPage() {
         <p className="text-gray-600 text-sm">© 2026 Brika. Todos los derechos reservados.</p>
       </div>
 
+      {/* Panel Derecho Formulario */}
       <div className="flex-1 flex items-center justify-center p-8 bg-white">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-2 mb-8 lg:hidden">
@@ -36,7 +89,7 @@ export default function LoginPage() {
 
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Bienvenido</h2>
           <p className="text-gray-500 mb-8">
-            Inicia sesión con tu cuenta de Google para acceder a la plataforma.
+            Ingresa tus credenciales para acceder a la plataforma.
           </p>
 
           {isDenied && (
@@ -57,15 +110,47 @@ export default function LoginPage() {
             </div>
           )}
 
-          <a href="/api/login" data-testid="button-google-login">
-            <Button className="w-full gap-3 h-11" size="lg">
-              <SiGoogle className="h-4 w-4" />
-              Iniciar sesión con Google
+          {errorMsg && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700 font-medium">Error de acceso</p>
+              <p className="text-sm text-red-600 mt-1">{errorMsg}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="email">Correo electrónico</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="ejemplo@brika.cl"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <Button type="submit" className="w-full h-11" size="lg" disabled={loading}>
+              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
-          </a>
+          </form>
 
           <p className="text-xs text-gray-400 text-center mt-6">
-            Solo usuarios invitados pueden acceder. Si no tienes acceso, solicítalo al administrador de la plataforma.
+            Solo usuarios registrados pueden acceder. Si no tienes acceso, solicítalo al administrador de la plataforma.
           </p>
         </div>
       </div>

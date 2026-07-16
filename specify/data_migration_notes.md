@@ -44,3 +44,10 @@ Al realizar la migración de datos (Tarea 3), se deben convertir de forma explí
 * **Tablas `cartola_global66_clp_rows` y `cartola_global66_usd_rows`**:
   * `debito`
   * `abono`
+
+## Usuarios de Prueba (Desarrollo únicamente)
+
+> [!WARNING]
+> Los siguientes usuarios de prueba fueron creados localmente en MariaDB para validar la autenticación local (Tarea 4). **Bajo ninguna circunstancia** deben ser importados o creados en el entorno de producción:
+> * `test@brika.cl` (contraseña: `testpassword` - cuenta administradora de prueba)
+> * `nullpass@brika.cl` (sin contraseña - cuenta de prueba para validación de robustez de nulos)
