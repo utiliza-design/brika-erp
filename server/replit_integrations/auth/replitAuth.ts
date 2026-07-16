@@ -1,23 +1,11 @@
-import * as client from "openid-client";
-import { Strategy, type VerifyFunction } from "openid-client/passport";
-
 import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
-import memoize from "memoizee";
+import bcrypt from "bcrypt";
 import MySQLStoreFactory from "express-mysql-session";
 import { pool } from "../../db";
-import { authStorage } from "./storage";
-
-const getOidcConfig = memoize(
-  async () => {
-    return await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
-    );
-  },
-  { maxAge: 3600 * 1000 }
-);
+import { storage } from "../../storage";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -31,6 +19,7 @@ export function getSession() {
     checkExpirationInterval: 900000, // 15 mins
     expiration: sessionTtl,
   }, pool.pool as any);
+
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore as any,
@@ -38,30 +27,10 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       maxAge: sessionTtl,
+      sameSite: "lax",
     },
-  });
-}
-
-function updateUserSession(
-  user: any,
-  tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
-) {
-  user.claims = tokens.claims();
-  user.access_token = tokens.access_token;
-  user.refresh_token = tokens.refresh_token;
-  user.id_token = tokens.id_token;
-  user.expires_at = user.claims?.exp;
-}
-
-async function upsertUser(claims: any) {
-  await authStorage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
   });
 }
 
@@ -71,124 +40,101 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  passport.serializeUser((user: Express.User, cb) => cb(null, user));
-  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
-
-  if (process.env.BYPASS_AUTH === "true") {
-    // Auto-login middleware for development
-    app.use((req, res, next) => {
-      if (!req.user) {
-        const mockUser = {
-          claims: {
-            sub: "mock-admin-id-123",
-            email: "admin@brika.cl",
-            first_name: "Admin",
-            last_name: "Local",
-            profile_image_url: null,
-          },
-          expires_at: Math.floor(Date.now() / 1000) + 3600 * 24,
-        };
-        req.login(mockUser, (err) => {
-          if (err) return next(err);
-          next();
-        });
-      } else {
-        next();
+  passport.use(new LocalStrategy(async (username, password, done) => {
+    try {
+      const appUser = await storage.getAppUser(username);
+      if (!appUser) {
+        return done(null, false, { message: "Credenciales inválidas" });
       }
-    });
 
-    app.get("/api/login", (req, res) => {
-      res.redirect("/");
-    });
+      // PASSWORD NULL: si el usuario no tiene contraseña (por ejemplo, appUsers existentes
+      // de la migración previa), rechazamos de forma silenciosa para evitar crasheos
+      // al pasar un valor null a bcrypt.compare y evitar revelar que la cuenta no tiene clave.
+      if (!appUser.password) {
+        return done(null, false, { message: "Credenciales inválidas" });
+      }
 
-    app.get("/api/callback", (req, res) => {
-      res.redirect("/");
-    });
+      const isValid = await bcrypt.compare(password, appUser.password);
+      if (!isValid) {
+        return done(null, false, { message: "Credenciales inválidas" });
+      }
 
-    app.get("/api/logout", (req, res) => {
-      req.logout(() => {
-        res.redirect("/login");
-      });
-    });
-    return;
-  }
-
-  const config = await getOidcConfig();
-
-  const verify: VerifyFunction = async (
-    tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
-    verified: passport.AuthenticateCallback
-  ) => {
-    const user = {};
-    updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
-    verified(null, user);
-  };
-
-  // Keep track of registered strategies
-  const registeredStrategies = new Set<string>();
-
-  // Helper function to ensure strategy exists for a domain
-  const ensureStrategy = (domain: string) => {
-    const strategyName = `replitauth:${domain}`;
-    if (!registeredStrategies.has(strategyName)) {
-      const strategy = new Strategy(
-        {
-          name: strategyName,
-          config,
-          scope: "openid email profile offline_access",
-          callbackURL: `https://${domain}/api/callback`,
-        },
-        verify
-      );
-      passport.use(strategy);
-      registeredStrategies.add(strategyName);
+      return done(null, appUser);
+    } catch (err) {
+      return done(err);
     }
-  };
+  }));
 
-  app.get("/api/login", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      prompt: "login",
-      scope: ["openid", "email", "profile", "offline_access"],
+  passport.serializeUser((user: any, cb) => {
+    cb(null, user.id);
+  });
+
+  passport.deserializeUser(async (id: string, cb) => {
+    try {
+      const appUser = await storage.getAppUserById(id);
+      if (!appUser) return cb(new Error("User not found"));
+
+      // PUENTE claims: inyectamos claims { email, first_name } por compatibilidad
+      // heredada del sistema de autenticación de Replit Auth para no forzar una refactorización
+      // del archivo routes.ts.
+      // TODO: Limpieza futura para que routes.ts consuma req.user.email directamente.
+      const sessionUser = {
+        ...appUser,
+        claims: {
+          email: appUser.email,
+          first_name: appUser.name ?? appUser.email,
+        }
+      };
+      cb(null, sessionUser);
+    } catch (err) {
+      cb(err);
+    }
+  });
+
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Credenciales inválidas" });
+      }
+      req.login(user, (loginErr) => {
+        if (loginErr) return next(loginErr);
+        res.json({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          status: user.status,
+          profileImageUrl: null,
+        });
+      });
     })(req, res, next);
   });
 
-  app.get("/api/callback", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
-    })(req, res, next);
-  });
-
-  app.get("/api/logout", (req, res) => {
-    const user = req.user as any;
-    const idToken = user?.id_token;
-    req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}/login`,
-          ...(idToken ? { id_token_hint: idToken } : {}),
-        }).href
-      );
+  app.post("/api/logout", (req, res, next) => {
+    req.logout((err) => {
+      if (err) return next(err);
+      req.session.destroy((destroyErr) => {
+        if (destroyErr) return next(destroyErr);
+        res.json({ success: true });
+      });
     });
   });
 }
 
-export const isAuthenticated: RequestHandler = async (req, res, next) => {
+export const isAuthenticated: RequestHandler = (req, res, next) => {
   if (process.env.BYPASS_AUTH === "true") {
     if (!req.user) {
       const mockUser = {
+        id: "mock-admin-id-123",
+        email: "admin@brika.cl",
+        name: "Admin Local",
+        role: "admin",
+        status: "active",
         claims: {
-          sub: "mock-admin-id-123",
           email: "admin@brika.cl",
-          first_name: "Admin",
-          last_name: "Local",
-          profile_image_url: null,
-        },
-        expires_at: Math.floor(Date.now() / 1000) + 3600 * 24,
+          first_name: "Admin Local",
+        }
       };
       req.login(mockUser, (err) => {
         if (err) return res.status(401).json({ message: "Unauthorized" });
@@ -199,30 +145,8 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return next();
   }
 
-  const user = req.user as any;
-
-  if (!req.isAuthenticated() || !user.expires_at) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  if (now <= user.expires_at) {
+  if (req.isAuthenticated()) {
     return next();
   }
-
-  const refreshToken = user.refresh_token;
-  if (!refreshToken) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
-  try {
-    const config = await getOidcConfig();
-    const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
-    updateUserSession(user, tokenResponse);
-    return next();
-  } catch (error) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
+  res.status(401).json({ message: "Unauthorized" });
 };
