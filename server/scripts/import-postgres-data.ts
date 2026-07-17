@@ -152,8 +152,9 @@ async function main() {
 
   console.log("Parseo finalizado con éxito. Iniciando transformación e importación...");
 
-  // Pre-hashear contraseña para app_users
-  const devPasswordHash = await bcrypt.hash("testlocal123", 10);
+  // Pre-hashear contraseña para app_users (permite parametrizarla en producción)
+  const seedPassword = process.env.SEED_PASSWORD || "testlocal123";
+  const devPasswordHash = await bcrypt.hash(seedPassword, 10);
 
   for (const tableName of importOrder) {
     const tableData = parsedData[tableName];
