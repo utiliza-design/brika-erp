@@ -177,6 +177,37 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/account/profile", async (req, res) => {
+    try {
+      const { name } = req.body;
+      const user = req.user as any;
+
+      if (!user || !user.id) {
+        return res.status(401).json({ message: "No autenticado" });
+      }
+
+      if (typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "El nombre es requerido y no puede estar vacío" });
+      }
+
+      const updatedUser = await storage.updateAppUserName(user.id, name.trim());
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        status: updatedUser.status,
+      });
+    } catch (error: any) {
+      console.error("Error al actualizar perfil:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  });
+
   app.get("/api/app-users", requireAdmin, async (_req, res) => {
     try {
       const users = await storage.getAllAppUsers();
