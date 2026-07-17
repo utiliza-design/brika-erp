@@ -38,6 +38,19 @@ comparten el mismo problema de fondo: **cómo hacerle llegar una clave a la
 persona sin depender de email**, dado que el proyecto no tiene un servicio de
 envío de correo contratado.
 
+> **Hallazgo adicional (durante planificación de 4.4/4.6):** sí existe hoy un
+> botón "Agregar usuario" en `client/src/pages/usuarios.tsx`, pero su flujo es
+> otro resto roto de la migración. Confirmado en `routes.ts`:
+> `POST /api/app-users/invite` crea el usuario con `status: "invited"` y
+> **sin contraseña**, y llama a `sendInvitationEmail()` (módulo de email ya
+> presente en el proyecto pero sin servicio contratado/configurado). Existe
+> además un endpoint hermano `POST /api/app-users/:id/resend-invite` con la
+> misma lógica. Un usuario creado así queda sin ninguna forma real de
+> loguearse. La Tarea 4.6 **elimina ambos endpoints** (`invite` y
+> `resend-invite`) y reemplaza el diálogo del frontend por el mecanismo de
+> clave temporal. La Tarea 4.4 (reseteo) sí es enteramente nueva — no existe
+> ningún botón de "restablecer contraseña" en esa pantalla todavía.
+
 **Decisión de diseño:** en ambos casos (creación y reseteo), el admin genera
 una **clave temporal** que el sistema le muestra **una sola vez** en pantalla,
 para que el propio admin se la entregue a la persona por un canal fuera del
@@ -287,6 +300,15 @@ determina cómo se implementa la invalidación en concreto.
 
 ### Tarea 4.6 — Creación de usuario/admin nuevo (sin invitación por email)
 
+**Importante:** esto no es un formulario nuevo desde cero — ya existe un botón
+"Agregar usuario" en `client/src/pages/usuarios.tsx`, con un diálogo que llama
+a `POST /api/app-users/invite` (confirmado: crea el usuario con
+`status: "invited"`, sin contraseña, y dispara `sendInvitationEmail()`). Existe
+también `POST /api/app-users/:id/resend-invite` con la misma lógica. **Ambos
+endpoints se eliminan** como parte de esta tarea, junto con el diálogo del
+frontend que los usa — quedan reemplazados por el mecanismo de clave temporal
+(no conviven ambos flujos).
+
 **Flujo:** idéntico en espíritu al reseteo (4.4), reutilizando el mismo
 mecanismo de clave temporal:
 
@@ -349,14 +371,39 @@ mantenimiento cuando cambien los admins.
 
 ---
 
+### Tarea 4.8 — Admin puede editar el nombre de otro usuario
+
+Hoy el usuario puede editar su propio nombre (Tarea 4.3), pero el diálogo
+"Editar" que ya existe para admins en `usuarios.tsx` solo permite cambiar el
+rol — no el nombre. Se agrega el campo nombre a ese mismo diálogo.
+
+**Backend:**
+- Extender el endpoint de edición de admin ya existente (o el que se use para
+  cambiar rol, revisar `PATCH /api/app-users/:id/role` en `routes.ts`) para
+  aceptar también `name`, o agregar un endpoint separado si conviene más por
+  claridad — a decidir con Antigravity revisando el patrón actual.
+- Solo accesible para admins (reutiliza `requireAdmin`).
+
+**Frontend:**
+- Agregar un campo de texto para el nombre en el diálogo "Editar" ya existente
+  en `usuarios.tsx`, junto al selector de rol.
+
+**Criterios de aceptación:**
+- [ ] Un admin puede editar el nombre de otro usuario desde el diálogo
+      "Editar" ya existente.
+- [ ] El cambio se refleja en la tabla de usuarios sin recargar la página.
+- [ ] Un usuario no-admin no puede acceder a este endpoint (403).
+
+---
+
 ## 5. Plan de trabajo
 
 1. Rama `002-gestion-usuarios` ya creada; Tarea 4.1 ya comiteada en ella.
-2. Continuar tarea por tarea (4.2 → 4.7) con prompts individuales a
+2. Continuar tarea por tarea (4.2 → 4.8) con prompts individuales a
    Antigravity, cada uno revisado por Stanley antes de ejecutarse, con
    commits individuales por tarea (mismo patrón que 4.1: implementar,
    verificar en local, mostrar diff, aprobar staging, commit).
-3. **Un solo Pull Request al final**, cuando las 7 tareas (4.1–4.7) estén
+3. **Un solo Pull Request al final**, cuando las 8 tareas (4.1–4.8) estén
    completas y verificadas en la rama — no se abre PR por tarea.
 4. Al completar todas las tareas y validar en local, abrir el PR contra
    `main` para revisión y merge.
