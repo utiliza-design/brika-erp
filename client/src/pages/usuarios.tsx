@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Users, Pencil } from "lucide-react";
+import { UserPlus, Users, Pencil, KeyRound } from "lucide-react";
 
 interface AppUser {
   id: string;
@@ -83,6 +83,11 @@ export default function UsuariosPage() {
   const [editUser, setEditUser] = useState<AppUser | null>(null);
   const [editRole, setEditRole] = useState<string>("user");
   const [editOpen, setEditOpen] = useState(false);
+
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPasswordUser, setTempPasswordUser] = useState<AppUser | null>(null);
+  const [tempOpen, setTempOpen] = useState(false);
+
 
   const { data: currentUser } = useQuery<CurrentUser>({
     queryKey: ["/api/me"],
@@ -181,6 +186,30 @@ export default function UsuariosPage() {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/users/${id}/reset-password`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Error al restablecer contraseña");
+      }
+      return res.json();
+    },
+    onSuccess: (data, id) => {
+      const user = users.find((u) => u.id === id);
+      setTempPasswordUser(user || null);
+      setTempPassword(data.temporaryPassword);
+      setTempOpen(true);
+      toast({ title: "Contraseña restablecida", description: "Se ha generado una clave temporal" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
 
   if (currentUser && currentUser.role !== "admin") {
     setLocation("/");
@@ -354,6 +383,39 @@ export default function UsuariosPage() {
                           </Button>
                         )}
 
+                        {!isCurrentUser && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                disabled={resetPasswordMutation.isPending}
+                                data-testid={`button-reset-password-${user.id}`}
+                              >
+                                <KeyRound className="h-3 w-3" />
+                                Restablecer
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Restablecer contraseña?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Se generará una clave temporal para <strong>{user.name || user.email}</strong> y se le obligará a cambiarla en su próximo inicio de sesión. La contraseña actual quedará invalidada de inmediato.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => resetPasswordMutation.mutate(user.id)}
+                                >
+                                  Restablecer
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+
                         {user.status !== "revoked" ? (
                           <Button
                             size="sm"
@@ -417,6 +479,44 @@ export default function UsuariosPage() {
           </tbody>
         </table>
       </div>
+
+      <Dialog open={tempOpen} onOpenChange={(open) => { if (!open) { setTempOpen(false); setTempPassword(null); setTempPasswordUser(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva Clave Temporal</DialogTitle>
+            <DialogDescription>
+              Se ha generado una contraseña temporal para <strong>{tempPasswordUser?.name || tempPasswordUser?.email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 space-y-2">
+              <p className="font-semibold">⚠️ IMPORTANTE:</p>
+              <p>Esta contraseña solo se mostrará <strong>una vez</strong>. Cópiala ahora y entrégala al usuario por un canal seguro (WhatsApp, en persona, etc.).</p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Input
+                readOnly
+                value={tempPassword || ""}
+                className="font-mono text-lg text-center tracking-wider bg-gray-50 h-12"
+              />
+              <Button
+                onClick={() => {
+                  if (tempPassword) {
+                    navigator.clipboard.writeText(tempPassword);
+                    toast({ title: "Copiado", description: "Clave temporal copiada al portapapeles" });
+                  }
+                }}
+              >
+                Copiar
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setTempOpen(false); setTempPassword(null); setTempPasswordUser(null); }}>Cerrar y Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

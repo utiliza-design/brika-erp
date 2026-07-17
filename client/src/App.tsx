@@ -24,6 +24,7 @@ import ClientesPage from "@/pages/clientes";
 import MovimientosBancosPage from "@/pages/movimientos-bancos";
 import LoginPage from "@/pages/login";
 import PerfilPage from "@/pages/perfil";
+import CambioClaveObligatorioPage from "@/pages/cambio-clave-obligatorio";
 import { useEffect } from "react";
 
 interface AppUser {
@@ -32,6 +33,7 @@ interface AppUser {
   name: string | null;
   role: string;
   status: string;
+  mustChangePassword: number;
   profileImageUrl: string | null;
 }
 
@@ -108,6 +110,10 @@ function AuthGuard() {
   }
 
   if (!user) return null;
+
+  if (user.mustChangePassword === 1) {
+    return <CambioClaveObligatorioPage />;
+  }
 
   return <AppRoutes user={user} />;
 }

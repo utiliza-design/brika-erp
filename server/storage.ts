@@ -39,6 +39,7 @@ export interface IStorage {
   updateAppUserOnLogin(id: string, name: string): Promise<void>;
   updateAppUserName(id: string, name: string): Promise<AppUser | undefined>;
   updateAppUserPassword(id: string, passwordHash: string): Promise<AppUser | undefined>;
+  resetAppUserPassword(id: string, passwordHash: string): Promise<AppUser | undefined>;
   deleteAppUser(id: string): Promise<void>;
 
   countAppUsers(): Promise<number>;
@@ -327,7 +328,13 @@ export class DatabaseStorage implements IStorage {
 
 
   async updateAppUserPassword(id: string, passwordHash: string): Promise<AppUser | undefined> {
-    await db.update(appUsers).set({ password: passwordHash }).where(eq(appUsers.id, id));
+    await db.update(appUsers).set({ password: passwordHash, mustChangePassword: 0 }).where(eq(appUsers.id, id));
+    const [updated] = await db.select().from(appUsers).where(eq(appUsers.id, id));
+    return updated || undefined;
+  }
+
+  async resetAppUserPassword(id: string, passwordHash: string): Promise<AppUser | undefined> {
+    await db.update(appUsers).set({ password: passwordHash, mustChangePassword: 1 }).where(eq(appUsers.id, id));
     const [updated] = await db.select().from(appUsers).where(eq(appUsers.id, id));
     return updated || undefined;
   }

@@ -10,6 +10,7 @@ import { parseFalabellaFile } from "./parsers/falabella-parser";
 import { parseGlobal66File } from "./parsers/global66-parser";
 import { isAuthenticated, updateUserPassword } from "./replit_integrations/auth";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { sendInvitationEmail, sendEmail } from "./email";
 import { isConfigured as isBsaleConfigured, syncVentas, syncCobranza, syncFactCompras, fetchBsaleStock } from "./bsale";
 import { cacheGet, cacheSet, cacheInvalidateAll, cacheInvalidatePrefix } from "./cache";
@@ -80,6 +81,17 @@ const requireAppAccess: RequestHandler = (req, res, next) => {
         return res.status(403).json({ denied: true, reason: "revoked" });
       }
 
+      if (appUser.mustChangePassword === 1) {
+        const ALLOWED_CHANGE_PASSWORD_PATHS = [
+          "/me",
+          "/logout",
+          "/account/change-password",
+        ];
+        if (!ALLOWED_CHANGE_PASSWORD_PATHS.includes(req.path)) {
+          return res.status(403).json({ mustChangePassword: true, message: "Cambio de contraseña obligatorio" });
+        }
+      }
+
       const name = [user.claims?.first_name, user.claims?.last_name].filter(Boolean).join(" ") || email;
       await storage.updateAppUserOnLogin(appUser.id, name);
 
@@ -133,6 +145,7 @@ export async function registerRoutes(
         name: appUser.name,
         role: appUser.role,
         status: appUser.status,
+        mustChangePassword: appUser.mustChangePassword,
         profileImageUrl: user.claims?.profile_image_url ?? null,
       });
     } catch (error: any) {
@@ -214,6 +227,39 @@ export async function registerRoutes(
       res.json(users);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/users/:id/reset-password", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const targetUser = await storage.getAppUserById(id);
+      if (!targetUser) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      const currentUser = req.user as any;
+      const currentEmail = currentUser.claims?.email;
+      if (targetUser.email === currentEmail) {
+        return res.status(400).json({ message: "No puedes restablecer tu propia contraseña por esta vía" });
+      }
+
+      // Generar clave temporal criptográficamente segura (10-12 caracteres)
+      // Excluyendo caracteres ambiguos: l, 1, o, O, 0, I, etc.
+      const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let temporaryPassword = "";
+      const bytes = crypto.randomBytes(10);
+      for (let i = 0; i < 10; i++) {
+        temporaryPassword += chars[bytes[i] % chars.length];
+      }
+
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+      await storage.resetAppUserPassword(targetUser.id, hashedPassword);
+
+      res.json({ temporaryPassword });
+    } catch (error: any) {
+      console.error("Error al restablecer contraseña:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
     }
   });
 
