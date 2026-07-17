@@ -58,3 +58,22 @@ Al realizar la migración de datos (Tarea 3), se deben convertir de forma explí
 > * `natalia@brikaorganics.cl`
 > * `colorina00@gmail.com`
 > * `natyjelen@gmail.com`
+
+## Notas de Despliegue y Construcción en Servidor Compartido (v2nets)
+
+> [!IMPORTANT]
+> El servidor `v2nets` es un hosting compartido gestionado por CloudLinux con límites estrictos de LVE (Límites de Procesos Virtuales y Hilos por usuario). 
+
+### 1. Construcción del Proyecto
+Para evitar fallos por creación excesiva de hilos del runtime de Go utilizado por `esbuild` (`runtime: failed to create new OS thread`), la compilación de producción debe ejecutarse limitando el paralelismo de Go:
+```bash
+source /opt/alt/alt-nodejs20/enable
+GOMAXPROCS=1 npm run build
+```
+De omitirse `GOMAXPROCS=1`, el compilador excederá el límite de procesos del LVE (Límites de Usuario de CloudLinux) y el proceso de compilación fallará con `exit code 1` (error de creación de hilos).
+
+### 2. Carga de Variables de Entorno en Producción
+El código fuente **no utiliza `dotenv`** en runtime, sino que asume que las variables de entorno ya están cargadas en `process.env` (en desarrollo local se inicia con `--env-file=.env` nativo de Node.js).
+Para producción en cPanel (Phusion Passenger):
+* **Opción Recomendada:** Cargar las variables de entorno (`DATABASE_URL`, `SESSION_SECRET`, `BSALE_ACCESS_TOKEN`, `NODE_ENV=production`) directamente en la sección de **Variables de Entorno** dentro del panel de configuración **"Setup Node.js App"** de cPanel. Passenger inyecta automáticamente estas variables en el proceso de Node.js.
+
