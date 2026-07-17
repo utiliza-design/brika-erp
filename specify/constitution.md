@@ -17,6 +17,7 @@ Ver `/docs/00-historia.md` (fuera de este repositorio) para el contexto completo
 - **Sesiones:** store de sesiones compatible con MySQL (no `connect-pg-simple`).
 - **Testing:** Vitest. Los tests son archivos permanentes versionados en Git (`server/__tests__/`), no scripts descartables.
 - **Hosting de producción:** v2nets (cPanel + Phusion Passenger + LiteSpeed). El proceso Node debe escuchar en `process.env.PORT` (asignado dinámicamente por Passenger, no fijo).
+- **Orden de despliegue de base de datos:** En despliegues que incluyan cambios de schema de base de datos, la migración o sentencia `ALTER TABLE` debe aplicarse SIEMPRE antes de reiniciar la aplicación (crear o actualizar `tmp/restart.txt`), nunca después, para prevenir que el servidor activo intente consultar campos o tablas inexistentes.
 
 ## Restricciones del entorno de hosting
 

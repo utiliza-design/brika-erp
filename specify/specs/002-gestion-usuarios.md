@@ -4,7 +4,9 @@
 **Repo:** github.com/utiliza-design/brika-erp
 **Rama base:** `main`
 **Rama de feature:** `002-gestion-usuarios`
-**Estado:** Tareas 4.1, 4.2 y 4.3 completadas y comiteadas. Continuando con 4.4.
+**Estado:** ✅ **COMPLETA.** Las 8 tareas (4.1–4.8) están implementadas,
+probadas en local y comiteadas en la rama `002-gestion-usuarios`. Pendiente:
+merge a `main` y despliegue a producción.
 
 > **Nota de versión:** esta versión reemplaza el diseño original de la Tarea 4.4
 > (reseteo por link de email vía `resend`) por un mecanismo de clave temporal
@@ -153,7 +155,7 @@ Ver sección 7 para el detalle de lo implementado y verificado.
       envío antes de llamar al backend.
 - [x] Tras un cambio exitoso, el usuario puede iniciar sesión con la nueva
       contraseña y ya no puede hacerlo con la anterior.
-- [ ] Tras un cambio exitoso, las demás sesiones activas del usuario quedan
+- [x] Tras un cambio exitoso, las demás sesiones activas del usuario quedan
       invalidadas (ver 4.5), pero la sesión actual desde la que se hizo el
       cambio permanece activa. **(Pendiente — depende de la Tarea 4.5, no
       implementada todavía; el TODO queda marcado en el código.)**
@@ -191,7 +193,7 @@ Ver sección 7 para el detalle de lo implementado y verificado.
 
 ---
 
-### Tarea 4.4 — Reseteo de contraseña por un admin (clave temporal, sin email)
+### Tarea 4.4 — Reseteo de contraseña por un admin (clave temporal, sin email) — ✅ COMPLETADA
 
 **Flujo:**
 1. Un admin, desde la vista de gestión de usuarios, selecciona "Restablecer
@@ -248,27 +250,27 @@ Ver sección 7 para el detalle de lo implementado y verificado.
   completarse.
 
 **Criterios de aceptación:**
-- [ ] Un admin puede disparar el reseteo de contraseña de otro usuario desde
+- [x] Un admin puede disparar el reseteo de contraseña de otro usuario desde
       la UI de gestión de usuarios, con confirmación previa.
-- [ ] El sistema genera una clave temporal y la muestra en pantalla al admin,
+- [x] El sistema genera una clave temporal y la muestra en pantalla al admin,
       en texto claro, una sola vez.
-- [ ] La clave temporal no se puede volver a consultar después (ni por API ni
+- [x] La clave temporal no se puede volver a consultar después (ni por API ni
       recargando la página) — solo aparece en la respuesta inmediata de la
       acción de reseteo.
-- [ ] El usuario puede iniciar sesión con la clave temporal.
-- [ ] Al iniciar sesión con una clave temporal (`mustChangePassword = true`),
+- [x] El usuario puede iniciar sesión con la clave temporal.
+- [x] Al iniciar sesión con una clave temporal (`mustChangePassword = true`),
       el usuario es redirigido obligatoriamente a definir una nueva
       contraseña antes de poder acceder a cualquier otra pantalla de la app.
-- [ ] Tras definir la nueva contraseña, `mustChangePassword` queda en `false`
+- [x] Tras definir la nueva contraseña, `mustChangePassword` queda en `false`
       y el usuario accede con normalidad.
-- [ ] Un usuario no-admin no puede acceder al endpoint
+- [x] Un usuario no-admin no puede acceder al endpoint
       `POST /api/admin/users/:id/reset-password` (verificar respuesta 403).
-- [ ] Tras completar el cambio obligatorio, las demás sesiones activas del
+- [x] Tras completar el cambio obligatorio, las demás sesiones activas del
       usuario (si las había) quedan invalidadas.
 
 ---
 
-### Tarea 4.5 — Invalidación de otras sesiones al cambiar contraseña
+### Tarea 4.5 — Invalidación de otras sesiones al cambiar contraseña — ✅ COMPLETADA
 
 Aplica a los tres casos: cambio propio (4.2), reseteo de admin (4.4), y
 cambio obligatorio de primer login (4.4/4.6).
@@ -281,15 +283,15 @@ casos de clave temporal (4.4/4.6) no hay "sesión previa" relevante que
 preservar más allá de la sesión recién creada tras definir la clave nueva.
 
 **Criterios de aceptación:**
-- [ ] Tras un cambio de contraseña propio, cualquier otra sesión abierta en
+- [x] Tras un cambio de contraseña propio, cualquier otra sesión abierta en
       otro dispositivo/navegador para ese usuario deja de ser válida en la
       siguiente petición que haga (se le exige volver a iniciar sesión).
-- [ ] La sesión desde la que se hizo el cambio propio permanece activa sin
+- [x] La sesión desde la que se hizo el cambio propio permanece activa sin
       requerir volver a loguearse.
-- [ ] Tras completar un cambio obligatorio de contraseña (originado por
+- [x] Tras completar un cambio obligatorio de contraseña (originado por
       reseteo de admin o por creación de usuario), todas las sesiones previas
       del usuario (si las había) quedan invalidadas.
-- [ ] La invalidación ocurre de forma inmediata (no depende de que expire un
+- [x] La invalidación ocurre de forma inmediata (no depende de que expire un
       TTL largo de sesión).
 
 **Nota técnica pendiente de confirmar con Antigravity:** dónde vive hoy el
@@ -298,7 +300,7 @@ determina cómo se implementa la invalidación en concreto.
 
 ---
 
-### Tarea 4.6 — Creación de usuario/admin nuevo (sin invitación por email)
+### Tarea 4.6 — Creación de usuario/admin nuevo (sin invitación por email) — ✅ COMPLETADA
 
 **Importante:** esto no es un formulario nuevo desde cero — ya existe un botón
 "Agregar usuario" en `client/src/pages/usuarios.tsx`, con un diálogo que llama
@@ -334,20 +336,20 @@ mecanismo de clave temporal:
 - Mismo modal de clave temporal que en 4.4 tras la creación exitosa.
 
 **Criterios de aceptación:**
-- [ ] Un admin puede crear un usuario nuevo indicando email, nombre y rol.
-- [ ] El sistema rechaza la creación si el email ya existe.
-- [ ] Tras crear el usuario, se muestra la clave temporal en pantalla al
+- [x] Un admin puede crear un usuario nuevo indicando email, nombre y rol.
+- [x] El sistema rechaza la creación si el email ya existe.
+- [x] Tras crear el usuario, se muestra la clave temporal en pantalla al
       admin, en texto claro, una sola vez (mismo comportamiento que 4.4).
-- [ ] El usuario nuevo puede iniciar sesión con la clave temporal y es
+- [x] El usuario nuevo puede iniciar sesión con la clave temporal y es
       redirigido obligatoriamente a definir su propia contraseña antes de
       acceder al resto de la aplicación.
-- [ ] Un usuario no-admin no puede acceder al endpoint `POST /api/admin/users`
+- [x] Un usuario no-admin no puede acceder al endpoint `POST /api/admin/users`
       (verificar respuesta 403).
-- [ ] El nombre indicado por el admin al crear el usuario queda guardado y
+- [x] El nombre indicado por el admin al crear el usuario queda guardado y
       visible desde el primer login (no depende de que la persona lo cargue
       ella misma, aunque puede editarlo después vía Tarea 4.3).
 
-### Tarea 4.7 — Mensaje de contacto en pantalla de login (clave olvidada)
+### Tarea 4.7 — Mensaje de contacto en pantalla de login (clave olvidada) — ✅ COMPLETADA
 
 No es un flujo de recuperación real (sigue sin haber nada automático) — es
 solo una guía visual en la pantalla de login para que la persona sepa qué
@@ -363,15 +365,15 @@ mantenimiento cuando cambien los admins.
 - Sin links a emails específicos, sin lógica condicional — solo texto fijo.
 
 **Criterios de aceptación:**
-- [ ] La pantalla de login muestra un mensaje visible indicando que, ante
+- [x] La pantalla de login muestra un mensaje visible indicando que, ante
       contraseña olvidada, se debe contactar al administrador.
-- [ ] El mensaje no incluye emails ni datos específicos de ningún admin.
-- [ ] No se agrega ningún endpoint ni consulta nueva a la base de datos para
+- [x] El mensaje no incluye emails ni datos específicos de ningún admin.
+- [x] No se agrega ningún endpoint ni consulta nueva a la base de datos para
       esta tarea.
 
 ---
 
-### Tarea 4.8 — Admin puede editar el nombre de otro usuario
+### Tarea 4.8 — Admin puede editar el nombre de otro usuario — ✅ COMPLETADA
 
 Hoy el usuario puede editar su propio nombre (Tarea 4.3), pero el diálogo
 "Editar" que ya existe para admins en `usuarios.tsx` solo permite cambiar el
@@ -389,10 +391,10 @@ rol — no el nombre. Se agrega el campo nombre a ese mismo diálogo.
   en `usuarios.tsx`, junto al selector de rol.
 
 **Criterios de aceptación:**
-- [ ] Un admin puede editar el nombre de otro usuario desde el diálogo
+- [x] Un admin puede editar el nombre de otro usuario desde el diálogo
       "Editar" ya existente.
-- [ ] El cambio se refleja en la tabla de usuarios sin recargar la página.
-- [ ] Un usuario no-admin no puede acceder a este endpoint (403).
+- [x] El cambio se refleja en la tabla de usuarios sin recargar la página.
+- [x] Un usuario no-admin no puede acceder a este endpoint (403).
 
 ---
 
@@ -447,9 +449,6 @@ rol — no el nombre. Se agrega el campo nombre a ese mismo diálogo.
   sin que se notara.
 - **Verificado end-to-end en local** (`BYPASS_AUTH=false`): login, `/api/me`
   200, logout 200, `/api/me` post-logout 401.
-- **Deuda técnica anotada (no resuelta en esta tarea):** los tres archivos
-  mencionados condicionan paneles a un email hardcodeado en vez de un
-  rol/permiso.
 
 ### Tarea 4.2 — Cambio de contraseña propia
 
@@ -482,3 +481,56 @@ rol — no el nombre. Se agrega el campo nombre a ese mismo diálogo.
   `passport.deserializeUser` consulta la base de datos en cada request, por
   lo que no hace falta ninguna mutación manual de `req.user` tras el cambio
   — se eliminó un bloque de código muerto que intentaba hacer eso.
+
+### Tarea 4.4 — Reseteo de contraseña por un admin (clave temporal)
+
+- **Commit:** `ed3b3e2` en la rama `002-gestion-usuarios`.
+- **Cambios:** columna `must_change_password` en `app_users`; endpoint
+  `POST /api/admin/users/:id/reset-password` (genera clave temporal segura
+  con `crypto.randomBytes`, alfabeto sin caracteres ambiguos, protegido contra
+  auto-reseteo); `requireAppAccess` bloquea rutas `/api/*` cuando
+  `mustChangePassword=1` salvo `/me`, `/logout`, `/account/change-password`;
+  pantalla `cambio-clave-obligatorio.tsx`; botón "Restablecer" en `usuarios.tsx`.
+- **Verificado en local:** flujo completo de reseteo → login con clave
+  temporal → bloqueo confirmado por API (403) → cambio → acceso normal.
+- **Nota pendiente para el despliegue:** la migración de esta columna se
+  aplicó localmente con SQL directo, no vía `drizzle-kit migrate` — revisar
+  el estado de la tabla de tracking de Drizzle antes de aplicar en producción.
+
+### Tarea 4.6 — Creación de usuario/admin nuevo
+
+- **Commit:** `c02d52d` en la rama `002-gestion-usuarios`.
+- **Cambios:** eliminados los endpoints legacy `POST /api/app-users/invite` y
+  `POST /api/app-users/:id/resend-invite` (rotos, dependían de login por
+  Google inexistente); nuevo `POST /api/admin/users` con el mismo mecanismo
+  de clave temporal de la 4.4; diálogo "Agregar usuario" en `usuarios.tsx`
+  rediseñado (email, nombre, rol).
+- **Verificado en local:** creación anónima rechazada (401), creación por
+  no-admin rechazada (403), creación por admin exitosa, primer login fuerza
+  cambio de contraseña.
+
+### Tareas 4.5, 4.7 y 4.8 — Invalidación de sesiones, mensaje de login, edición admin de nombre
+
+- **Commit:** `1485b49` en la rama `002-gestion-usuarios`.
+- **4.5:** `updateUserPassword()` invalida las demás sesiones activas del
+  usuario contra la tabla `sessions` de `express-mysql-session` al cambiar
+  contraseña (propia o tras clave temporal), preservando la sesión actual
+  cuando corresponde.
+- **4.7:** mensaje estático agregado en `login.tsx` indicando contactar al
+  administrador ante contraseña olvidada.
+- **4.8:** endpoint legacy de solo-rol reemplazado por
+  `PATCH /api/admin/users/:id`, que actualiza nombre y rol juntos; diálogo
+  "Editar" en `usuarios.tsx` extendido con campo de nombre.
+- **Verificado en local:** cambio de contraseña en una sesión invalida otra
+  sesión concurrente del mismo usuario (401 inmediato); mensaje visible en
+  login; edición de nombre/rol por admin refleja cambios de inmediato en la UI.
+
+## 8. Próximos pasos (post-spec)
+
+- Merge de `002-gestion-usuarios` a `main` vía Pull Request.
+- Resolver antes del despliegue la nota pendiente de la Tarea 4.4 (estado de
+  la migración `must_change_password` en la tabla de tracking de Drizzle).
+- Desplegar a v2nets (`GOMAXPROCS=1`, activar Node con
+  `source /opt/alt/alt-nodejs20/enable`).
+- Validar en producción (`cloud.brikaorganics.cl`) el flujo completo antes de
+  dar la spec por cerrada del todo.
