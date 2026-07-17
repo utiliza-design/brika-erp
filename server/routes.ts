@@ -8,7 +8,8 @@ import { parseCartolaFile } from "./parsers/cartola-parser";
 import { parseSecurityFile } from "./parsers/security-parser";
 import { parseFalabellaFile } from "./parsers/falabella-parser";
 import { parseGlobal66File } from "./parsers/global66-parser";
-import { isAuthenticated } from "./replit_integrations/auth";
+import { isAuthenticated, updateUserPassword } from "./replit_integrations/auth";
+import bcrypt from "bcrypt";
 import { sendInvitationEmail, sendEmail } from "./email";
 import { isConfigured as isBsaleConfigured, syncVentas, syncCobranza, syncFactCompras, fetchBsaleStock } from "./bsale";
 import { cacheGet, cacheSet, cacheInvalidateAll, cacheInvalidatePrefix } from "./cache";
@@ -136,6 +137,43 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/account/change-password", async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const user = req.user as any;
+      const email = user?.claims?.email;
+
+      if (!email) {
+        return res.status(401).json({ message: "No autenticado" });
+      }
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "La contraseña actual y la nueva contraseña son requeridas" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "La nueva contraseña debe tener al menos 8 caracteres" });
+      }
+
+      const appUser = await storage.getAppUser(email);
+      if (!appUser || !appUser.password) {
+        return res.status(401).json({ message: "Usuario no encontrado o credenciales inválidas" });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, appUser.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: "La contraseña actual es incorrecta" });
+      }
+
+      await updateUserPassword(appUser.id, newPassword);
+
+      res.json({ success: true, message: "Contraseña actualizada exitosamente" });
+    } catch (error: any) {
+      console.error("Error al cambiar contraseña:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
     }
   });
 

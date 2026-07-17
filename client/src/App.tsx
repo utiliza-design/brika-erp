@@ -23,6 +23,7 @@ import UsuariosPage from "@/pages/usuarios";
 import ClientesPage from "@/pages/clientes";
 import MovimientosBancosPage from "@/pages/movimientos-bancos";
 import LoginPage from "@/pages/login";
+import PerfilPage from "@/pages/perfil";
 import { useEffect } from "react";
 
 interface AppUser {
@@ -62,6 +63,7 @@ function AppRoutes({ user }: { user: AppUser }) {
               <Route path="/usuarios" component={UsuariosPage} />
               <Route path="/clientes" component={ClientesPage} />
               <Route path="/movimientos-bancos" component={MovimientosBancosPage} />
+              <Route path="/perfil" component={PerfilPage} />
               <Route component={NotFound} />
             </Switch>
           </main>
