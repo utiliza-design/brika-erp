@@ -1,6 +1,7 @@
 import { uploadedFiles, type UploadedFile, type InsertUploadedFile, type FileType, centroCostosRules, type CentroCostosRule, type InsertCentroCostosRule, centroCostosReviews, facturaReviews, type FacturaReview, facturaPropuestas, type FacturaPropuesta, appUsers, type AppUser, type InsertAppUser, ventasAmigo, type VentaAmigo, type InsertVentaAmigo, cartolaRows, cartolaSecurityRows, cartolaFalabellaRows, cobranzaRows, factVentasRows, factComprasRows, stockRows, cartolaGlobal66ClpRows, cartolaGlobal66UsdRows, clientes, type Cliente, type InsertCliente, emailLogs, type EmailLog, type InsertEmailLog, discontinuedProducts, type DiscontinuedProduct, facturaAutoMatchRejections, type FacturaAutoMatchRejection } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, sql } from "drizzle-orm";
+import { hasValidEmail, insertAndFetch, insertBatch } from "./db-helpers";
 
 export interface IStorage {
   createUploadedFile(file: InsertUploadedFile): Promise<UploadedFile>;
@@ -25,7 +26,7 @@ export interface IStorage {
   getFechaCobroMap(): Promise<Map<string, string>>;
   saveFechaCobro(movementKey: string, fechaCobro: string | null): Promise<void>;
   getFacturaReviews(): Promise<FacturaReview[]>;
-  upsertFacturaReview(facturaKey: string, estado: string, cartolaMovementKey?: string | null): Promise<FacturaReview>;
+  upsertFacturaReview(facturaKey: string, estado: "pendiente" | "pagado" | "propuesto", cartolaMovementKey?: string | null): Promise<FacturaReview>;
   getFacturaPropuestas(facturaKey?: string): Promise<FacturaPropuesta[]>;
   addFacturaPropuesta(facturaKey: string, tipo: string, cartolaMovementKey?: string | null, notaManual?: string | null): Promise<FacturaPropuesta>;
   deleteFacturaPropuesta(id: string): Promise<void>;
@@ -77,8 +78,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async createUploadedFile(file: InsertUploadedFile): Promise<UploadedFile> {
-    const [uploaded] = await db.insert(uploadedFiles).values(file).returning();
-    return uploaded;
+    return await insertAndFetch(db, uploadedFiles, file);
   }
 
   async getUploadedFiles(fileType?: FileType): Promise<UploadedFile[]> {
@@ -90,13 +90,13 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNonCartolaUploadedFiles(): Promise<number> {
     const bsaleTypes: FileType[] = ["fact_ventas", "fact_ventas_bsale", "cobranza", "fact_compras"];
-    const result = await db.delete(uploadedFiles).where(inArray(uploadedFiles.fileType, bsaleTypes)).returning({ id: uploadedFiles.id });
-    return result.length;
+    const [info] = await db.delete(uploadedFiles).where(inArray(uploadedFiles.fileType, bsaleTypes));
+    return (info as any).affectedRows;
   }
 
   async deleteAllUploadedFilesByType(fileType: FileType): Promise<number> {
-    const result = await db.delete(uploadedFiles).where(eq(uploadedFiles.fileType, fileType)).returning({ id: uploadedFiles.id });
-    return result.length;
+    const [info] = await db.delete(uploadedFiles).where(eq(uploadedFiles.fileType, fileType));
+    return (info as any).affectedRows;
   }
 
   async getUploadedFile(id: string): Promise<UploadedFile | undefined> {
@@ -117,8 +117,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCentroCostosRule(rule: InsertCentroCostosRule): Promise<CentroCostosRule> {
-    const [created] = await db.insert(centroCostosRules).values(rule).returning();
-    return created;
+    return await insertAndFetch(db, centroCostosRules, rule);
   }
 
   async upsertCentroCostosRule(rule: InsertCentroCostosRule): Promise<CentroCostosRule> {
@@ -126,19 +125,22 @@ export class DatabaseStorage implements IStorage {
     const allRules = await db.select().from(centroCostosRules);
     const existing = allRules.find(r => r.pattern.toUpperCase() === patternUpper);
     if (existing) {
-      const [updated] = await db
+      await db
         .update(centroCostosRules)
         .set({ centroCostos: rule.centroCostos, priority: rule.priority, matchType: rule.matchType })
-        .where(eq(centroCostosRules.id, existing.id))
-        .returning();
+        .where(eq(centroCostosRules.id, existing.id));
+      const [updated] = await db.select().from(centroCostosRules).where(eq(centroCostosRules.id, existing.id));
+      if (!updated) {
+        throw new Error("Failed to fetch updated rule");
+      }
       return updated;
     }
-    const [created] = await db.insert(centroCostosRules).values(rule).returning();
-    return created;
+    return await insertAndFetch(db, centroCostosRules, rule);
   }
 
   async updateCentroCostosRule(id: string, updates: Partial<InsertCentroCostosRule>): Promise<CentroCostosRule | undefined> {
-    const [updated] = await db.update(centroCostosRules).set(updates).where(eq(centroCostosRules.id, id)).returning();
+    await db.update(centroCostosRules).set(updates).where(eq(centroCostosRules.id, id));
+    const [updated] = await db.select().from(centroCostosRules).where(eq(centroCostosRules.id, id));
     return updated || undefined;
   }
 
@@ -152,12 +154,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setReview(movementKey: string, revisado: boolean): Promise<void> {
-    const [existing] = await db.select().from(centroCostosReviews).where(eq(centroCostosReviews.movementKey, movementKey));
-    if (existing) {
-      await db.update(centroCostosReviews).set({ revisado: revisado ? 1 : 0 }).where(eq(centroCostosReviews.id, existing.id));
-    } else {
-      await db.insert(centroCostosReviews).values({ movementKey, revisado: revisado ? 1 : 0 });
-    }
+    await db.insert(centroCostosReviews)
+      .values({ movementKey, revisado: revisado ? 1 : 0 })
+      .onDuplicateKeyUpdate({
+        set: {
+          revisado: revisado ? 1 : 0
+        }
+      });
   }
 
   async getSavedCentroCostosMap(): Promise<Map<string, string | null>> {
@@ -225,20 +228,20 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(facturaReviews);
   }
 
-  async upsertFacturaReview(facturaKey: string, estado: string, cartolaMovementKey?: string | null): Promise<FacturaReview> {
-    const [existing] = await db.select().from(facturaReviews).where(eq(facturaReviews.facturaKey, facturaKey));
-    if (existing) {
-      const [updated] = await db.update(facturaReviews)
-        .set({ estado, cartolaMovementKey: cartolaMovementKey ?? null })
-        .where(eq(facturaReviews.id, existing.id))
-        .returning();
-      return updated;
-    } else {
-      const [created] = await db.insert(facturaReviews)
-        .values({ facturaKey, estado, cartolaMovementKey: cartolaMovementKey ?? null })
-        .returning();
-      return created;
+  async upsertFacturaReview(facturaKey: string, estado: "pendiente" | "pagado" | "propuesto", cartolaMovementKey?: string | null): Promise<FacturaReview> {
+    await db.insert(facturaReviews)
+      .values({ facturaKey, estado, cartolaMovementKey: cartolaMovementKey ?? null })
+      .onDuplicateKeyUpdate({
+        set: {
+          estado,
+          cartolaMovementKey: cartolaMovementKey ?? null
+        }
+      });
+    const [updated] = await db.select().from(facturaReviews).where(eq(facturaReviews.facturaKey, facturaKey));
+    if (!updated) {
+      throw new Error("Failed to fetch updated factura review");
     }
+    return updated;
   }
 
   async getFacturaPropuestas(facturaKey?: string): Promise<FacturaPropuesta[]> {
@@ -249,13 +252,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addFacturaPropuesta(facturaKey: string, tipo: string, cartolaMovementKey?: string | null, notaManual?: string | null): Promise<FacturaPropuesta> {
-    const [created] = await db.insert(facturaPropuestas).values({
+    return await insertAndFetch(db, facturaPropuestas, {
       facturaKey,
       tipo,
       cartolaMovementKey: cartolaMovementKey ?? null,
       notaManual: notaManual ?? null,
-    }).returning();
-    return created;
+    });
   }
 
   async deleteFacturaPropuesta(id: string): Promise<void> {
@@ -277,8 +279,7 @@ export class DatabaseStorage implements IStorage {
     const [existing] = await db.select().from(facturaAutoMatchRejections)
       .where(sql`${facturaAutoMatchRejections.facturaKey} = ${facturaKey} AND ${facturaAutoMatchRejections.cartolaMovementKey} = ${cartolaMovementKey}`);
     if (existing) return existing;
-    const [created] = await db.insert(facturaAutoMatchRejections).values({ facturaKey, cartolaMovementKey }).returning();
-    return created;
+    return await insertAndFetch(db, facturaAutoMatchRejections, { facturaKey, cartolaMovementKey });
   }
 
   async getAppUser(email: string): Promise<AppUser | undefined> {
@@ -296,17 +297,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAppUser(data: InsertAppUser): Promise<AppUser> {
-    const [user] = await db.insert(appUsers).values(data).returning();
-    return user;
+    return await insertAndFetch(db, appUsers, data);
   }
 
   async updateAppUserStatus(id: string, status: string): Promise<AppUser | undefined> {
-    const [updated] = await db.update(appUsers).set({ status }).where(eq(appUsers.id, id)).returning();
+    await db.update(appUsers).set({ status }).where(eq(appUsers.id, id));
+    const [updated] = await db.select().from(appUsers).where(eq(appUsers.id, id));
     return updated || undefined;
   }
 
   async updateAppUserRole(id: string, role: string): Promise<AppUser | undefined> {
-    const [updated] = await db.update(appUsers).set({ role }).where(eq(appUsers.id, id)).returning();
+    await db.update(appUsers).set({ role }).where(eq(appUsers.id, id));
+    const [updated] = await db.select().from(appUsers).where(eq(appUsers.id, id));
     return updated || undefined;
   }
 
@@ -328,23 +330,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVentaAmigo(data: InsertVentaAmigo): Promise<VentaAmigo> {
-    const [created] = await db.insert(ventasAmigo).values(data).returning();
-    return created;
+    return await insertAndFetch(db, ventasAmigo, data);
   }
 
   async updateVentaAmigoEstado(id: number, estado: string): Promise<VentaAmigo | undefined> {
-    const [updated] = await db.update(ventasAmigo).set({ estado }).where(eq(ventasAmigo.id, id)).returning();
+    await db.update(ventasAmigo).set({ estado }).where(eq(ventasAmigo.id, id));
+    const [updated] = await db.select().from(ventasAmigo).where(eq(ventasAmigo.id, id));
     return updated || undefined;
   }
 
   async updateVentaAmigo(id: number, data: Partial<InsertVentaAmigo>): Promise<VentaAmigo | undefined> {
-    const [updated] = await db.update(ventasAmigo).set(data).where(eq(ventasAmigo.id, id)).returning();
+    await db.update(ventasAmigo).set(data).where(eq(ventasAmigo.id, id));
+    const [updated] = await db.select().from(ventasAmigo).where(eq(ventasAmigo.id, id));
     return updated || undefined;
   }
 
   async deleteVentaAmigo(id: number): Promise<boolean> {
-    const result = await db.delete(ventasAmigo).where(eq(ventasAmigo.id, id)).returning();
-    return result.length > 0;
+    const [info] = await db.delete(ventasAmigo).where(eq(ventasAmigo.id, id));
+    return info.affectedRows > 0;
   }
 
   async bulkUpsertCentroCostosImport(items: { movementKey: string; centroCostos: string; revisado: number; fechaCobroOverride?: string | null; nDocumentoOverride?: string | null }[]): Promise<void> {
@@ -358,25 +361,24 @@ export class DatabaseStorage implements IStorage {
           movementKey: item.movementKey,
           centroCostos: item.centroCostos,
           revisado: item.revisado,
-          fechaCobroOverride: item.fechaCobroOverride ?? null,
-          nDocumentoOverride: item.nDocumentoOverride ?? null,
+          fechaCobroOverride: item.fechaCobroOverride ?? undefined,
+          nDocumentoOverride: item.nDocumentoOverride ?? undefined,
         })))
-        .onConflictDoUpdate({
-          target: centroCostosReviews.movementKey,
+        .onDuplicateKeyUpdate({
           set: {
-            centroCostos: sql`CASE WHEN centro_costos_reviews.revisado = 1 THEN centro_costos_reviews.centro_costos ELSE excluded.centro_costos END`,
-            revisado: sql`CASE WHEN centro_costos_reviews.revisado = 1 THEN 1 ELSE excluded.revisado END`,
-            fechaCobroOverride: sql`excluded.fecha_cobro_override`,
-            nDocumentoOverride: sql`CASE WHEN excluded.n_documento_override IS NOT NULL THEN excluded.n_documento_override ELSE centro_costos_reviews.n_documento_override END`,
+            centroCostos: sql`CASE WHEN revisado = 1 THEN centro_costos ELSE VALUES(centro_costos) END`,
+            revisado: sql`CASE WHEN revisado = 1 THEN 1 ELSE VALUES(revisado) END`,
+            fechaCobroOverride: sql`VALUES(fecha_cobro_override)`,
+            nDocumentoOverride: sql`CASE WHEN VALUES(n_documento_override) IS NOT NULL THEN VALUES(n_documento_override) ELSE n_documento_override END`,
           },
         });
     }
   }
 
-  private toNumericOrNull(val: unknown): string | null {
-    if (val == null) return null;
+  private toNumericOrUndefined(val: unknown): string | undefined {
+    if (val == null) return undefined;
     const s = String(val).trim();
-    if (s === "" || isNaN(Number(s))) return null;
+    if (s === "" || isNaN(Number(s))) return undefined;
     return s;
   }
 
@@ -387,16 +389,15 @@ export class DatabaseStorage implements IStorage {
       uploadedFileId,
       fecha: String(r["Fecha"] ?? ""),
       detalleMovimiento: String(r["Detalle Movimiento"] ?? ""),
-      chequeOCargo: this.toNumericOrNull(r["Cheque o Cargo"]),
-      depositoOAbono: this.toNumericOrNull(r["Deposito o Abono"]),
-      saldo: this.toNumericOrNull(r["Saldo"]),
-      doctoNro: r["Docto. Nro."] != null ? String(r["Docto. Nro."]) : null,
-      trn: r["Trn"] != null ? String(r["Trn"]) : null,
-      caja: r["Caja"] != null ? String(r["Caja"]) : null,
-      sucursal: r["Sucursal"] != null ? String(r["Sucursal"]) : null,
+      chequeOCargo: this.toNumericOrUndefined(r["Cheque o Cargo"]),
+      depositoOAbono: this.toNumericOrUndefined(r["Deposito o Abono"]),
+      saldo: this.toNumericOrUndefined(r["Saldo"]),
+      doctoNro: r["Docto. Nro."] != null ? String(r["Docto. Nro."]) : undefined,
+      trn: r["Trn"] != null ? String(r["Trn"]) : undefined,
+      caja: r["Caja"] != null ? String(r["Caja"]) : undefined,
+      sucursal: r["Sucursal"] != null ? String(r["Sucursal"]) : undefined,
     }));
-    const result = await db.insert(cartolaRows).values(values).onConflictDoNothing().returning({ id: cartolaRows.id });
-    return result.length;
+    return await insertBatch(db, cartolaRows, values);
   }
 
   async bulkInsertCartolaSecurityRows(uploadedFileId: string, rows: Record<string, unknown>[]): Promise<number> {
@@ -405,13 +406,12 @@ export class DatabaseStorage implements IStorage {
       uploadedFileId,
       fecha: String(r["Fecha"] ?? ""),
       detalleMovimiento: String(r["Detalle Movimiento"] ?? ""),
-      doctoNro: r["Docto. Nro."] != null ? String(r["Docto. Nro."]) : null,
-      cargo: this.toNumericOrNull(r["Cargo"]),
-      abono: this.toNumericOrNull(r["Abono"]),
-      saldo: this.toNumericOrNull(r["Saldo"]),
+      doctoNro: r["Docto. Nro."] != null ? String(r["Docto. Nro."]) : undefined,
+      cargo: this.toNumericOrUndefined(r["Cargo"]),
+      abono: this.toNumericOrUndefined(r["Abono"]),
+      saldo: this.toNumericOrUndefined(r["Saldo"]),
     }));
-    const result = await db.insert(cartolaSecurityRows).values(values).onConflictDoNothing().returning({ id: cartolaSecurityRows.id });
-    return result.length;
+    return await insertBatch(db, cartolaSecurityRows, values);
   }
 
   async bulkInsertCartolaFalabellaRows(uploadedFileId: string, rows: Record<string, unknown>[]): Promise<number> {
@@ -419,38 +419,36 @@ export class DatabaseStorage implements IStorage {
     const values = rows.map(r => ({
       uploadedFileId,
       fecha: String(r["Fecha"] ?? ""),
-      oficina: r["Oficina"] != null ? String(r["Oficina"]) : null,
-      nroDoc: r["Nro Doc"] != null ? String(r["Nro Doc"]) : null,
-      descripcion: r["Descripción"] != null ? String(r["Descripción"]) : null,
-      cargo: this.toNumericOrNull(r["Cargo"]),
-      abono: this.toNumericOrNull(r["Abono"]),
-      saldo: this.toNumericOrNull(r["Saldo"]),
+      oficina: r["Oficina"] != null ? String(r["Oficina"]) : undefined,
+      nroDoc: r["Nro Doc"] != null ? String(r["Nro Doc"]) : undefined,
+      descripcion: r["Descripción"] != null ? String(r["Descripción"]) : undefined,
+      cargo: this.toNumericOrUndefined(r["Cargo"]),
+      abono: this.toNumericOrUndefined(r["Abono"]),
+      saldo: this.toNumericOrUndefined(r["Saldo"]),
     }));
-    const result = await db.insert(cartolaFalabellaRows).values(values).onConflictDoNothing().returning({ id: cartolaFalabellaRows.id });
-    return result.length;
+    return await insertBatch(db, cartolaFalabellaRows, values);
   }
 
   async bulkInsertCobranzaRows(uploadedFileId: string, rows: Record<string, unknown>[]): Promise<number> {
     if (rows.length === 0) return 0;
     const values = rows.map(r => ({
       uploadedFileId,
-      tipoDocumento: r["Tipo Documento"] != null ? String(r["Tipo Documento"]) : null,
-      nDocumento: r["Nº Documento"] != null ? String(r["Nº Documento"]) : null,
-      rutCliente: r["Rut Cliente"] != null ? String(r["Rut Cliente"]) : null,
-      fechaEmision: r["Fecha Emisión"] != null ? String(r["Fecha Emisión"]) : null,
-      montoExento: r["Monto Exento"] != null ? String(r["Monto Exento"]) : null,
-      montoNeto: r["Monto Neto"] != null ? String(r["Monto Neto"]) : null,
-      montoIva: r["Monto Iva"] != null ? String(r["Monto Iva"]) : null,
-      imptoEspecifico: r["Impto. Especifico"] != null ? String(r["Impto. Especifico"]) : null,
-      montoTotal: r["Monto Total"] != null ? String(r["Monto Total"]) : null,
-      fechaAcuse: r["Fecha Acuse"] != null ? String(r["Fecha Acuse"]) : null,
-      notificacionComercial: r["Notificación Comercial"] != null ? String(r["Notificación Comercial"]) : null,
-      fechaNotificacionComercial: r["Fecha Notificación Comercial"] != null ? String(r["Fecha Notificación Comercial"]) : null,
-      xmlRecepcionado: r["XML recepcionado"] != null ? String(r["XML recepcionado"]) : null,
-      estado: r["Estado"] != null ? String(r["Estado"]) : null,
+      tipoDocumento: r["Tipo Documento"] != null ? String(r["Tipo Documento"]) : undefined,
+      nDocumento: r["Nº Documento"] != null ? String(r["Nº Documento"]) : undefined,
+      rutCliente: r["Rut Cliente"] != null ? String(r["Rut Cliente"]) : undefined,
+      fechaEmision: r["Fecha Emisión"] != null ? String(r["Fecha Emisión"]) : undefined,
+      montoExento: r["Monto Exento"] != null ? String(r["Monto Exento"]) : undefined,
+      montoNeto: r["Monto Neto"] != null ? String(r["Monto Neto"]) : undefined,
+      montoIva: r["Monto Iva"] != null ? String(r["Monto Iva"]) : undefined,
+      imptoEspecifico: r["Impto. Especifico"] != null ? String(r["Impto. Especifico"]) : undefined,
+      montoTotal: r["Monto Total"] != null ? String(r["Monto Total"]) : undefined,
+      fechaAcuse: r["Fecha Acuse"] != null ? String(r["Fecha Acuse"]) : undefined,
+      notificacionComercial: r["Notificación Comercial"] != null ? String(r["Notificación Comercial"]) : undefined,
+      fechaNotificacionComercial: r["Fecha Notificación Comercial"] != null ? String(r["Fecha Notificación Comercial"]) : undefined,
+      xmlRecepcionado: r["XML recepcionado"] != null ? String(r["XML recepcionado"]) : undefined,
+      estado: r["Estado"] != null ? String(r["Estado"]) : undefined,
     }));
-    const result = await db.insert(cobranzaRows).values(values).onConflictDoNothing().returning({ id: cobranzaRows.id });
-    return result.length;
+    return await insertBatch(db, cobranzaRows, values);
   }
 
   async bulkInsertFactVentasRows(uploadedFileId: string, rows: Record<string, unknown>[]): Promise<number> {
@@ -458,53 +456,53 @@ export class DatabaseStorage implements IStorage {
     const toStr = (v: unknown) => v != null ? String(v) : null;
     const values = rows.map(r => ({
       uploadedFileId,
-      tipoMovimiento: toStr(r["Tipo Movimiento"]),
-      tipoDeDocumento: toStr(r["Tipo de Documento"]),
-      numeroDocumento: toStr(r["Numero Documento"]),
-      fechaDeEmision: toStr(r["Fecha de Emisión"]),
-      trackingNumber: toStr(r["Tracking number"]),
-      fechaVenta: toStr(r["Fecha Venta"]),
-      horaVenta: toStr(r["Hora Venta"]),
-      sucursal: toStr(r["Sucursal"]),
-      vendedor: toStr(r["Vendedor"]),
-      nombreCliente: toStr(r["Nombre Cliente"]),
-      clienteRut: toStr(r["Cliente RUT"]),
-      emailCliente: toStr(r["Email Cliente"]),
-      clienteDireccion: toStr(r["Cliente Dirección"]),
-      clienteComuna: toStr(r["Cliente Comuna"]),
-      clienteCiudad: toStr(r["Cliente Ciudad"]),
-      listaDePrecio: toStr(r["Lista de Precio"]),
-      tipoDeEntrega: toStr(r["Tipo de entrega"]),
-      moneda: toStr(r["Moneda"]),
-      tipoDeProductoServicio: toStr(r["Tipo de Producto / Servicio"]),
-      sku: toStr(r["SKU"]),
-      productoServicio: toStr(r["Producto / Servicio"]),
-      variante: toStr(r["Variante"]),
-      otrosAtributos: toStr(r["Otros Atributos"]),
-      marca: toStr(r["Marca"]),
-      detallePackPromo: toStr(r["Detalle de Productos/Servicios Pack/Promo"]),
-      precioDeLista: this.toNumericOrNull(r["Precio de Lista"]),
-      precioNetoUnitario: this.toNumericOrNull(r["Precio Neto Unitario"]),
-      precioBrutoUnitario: this.toNumericOrNull(r["Precio Bruto Unitario"]),
-      cantidad: this.toNumericOrNull(r["Cantidad"]),
-      ventaTotalNeta: this.toNumericOrNull(r["Venta Total Neta"]),
-      totalImpuestos: this.toNumericOrNull(r["Total Impuestos"]),
-      ventaTotalBruta: this.toNumericOrNull(r["Venta Total Bruta"]),
-      nombreDeDcto: toStr(r["Nombre de dcto"]),
-      descuentoNeto: this.toNumericOrNull(r["Descuento Neto"]),
-      descuentoBruto: this.toNumericOrNull(r["Descuento Bruto"]),
-      porcentajeDescuento: toStr(r["% Descuento"]),
-      costoNetoUnitario: this.toNumericOrNull(r["Costo neto unitario"]),
-      costoTotalNeto: this.toNumericOrNull(r["Costo Total Neto"]),
-      margen: this.toNumericOrNull(r["Margen"]),
-      porcentajeMargen: toStr(r["% Margen"]),
+      tipoMovimiento: toStr(r["Tipo Movimiento"]) ?? undefined,
+      tipoDeDocumento: toStr(r["Tipo de Documento"]) ?? undefined,
+      numeroDocumento: toStr(r["Numero Documento"]) ?? undefined,
+      fechaDeEmision: toStr(r["Fecha de Emisión"]) ?? undefined,
+      trackingNumber: toStr(r["Tracking number"]) ?? undefined,
+      fechaVenta: toStr(r["Fecha Venta"]) ?? undefined,
+      horaVenta: toStr(r["Hora Venta"]) ?? undefined,
+      sucursal: toStr(r["Sucursal"]) ?? undefined,
+      vendedor: toStr(r["Vendedor"]) ?? undefined,
+      nombreCliente: toStr(r["Nombre Cliente"]) ?? undefined,
+      clienteRut: toStr(r["Cliente RUT"]) ?? undefined,
+      emailCliente: toStr(r["Email Cliente"]) ?? undefined,
+      clienteDireccion: toStr(r["Cliente Dirección"]) ?? undefined,
+      clienteComuna: toStr(r["Cliente Comuna"]) ?? undefined,
+      clienteCiudad: toStr(r["Cliente Ciudad"]) ?? undefined,
+      listaDePrecio: toStr(r["Lista de Precio"]) ?? undefined,
+      tipoDeEntrega: toStr(r["Tipo de entrega"]) ?? undefined,
+      moneda: toStr(r["Moneda"]) ?? undefined,
+      tipoDeProductoServicio: toStr(r["Tipo de Producto / Servicio"]) ?? undefined,
+      sku: toStr(r["SKU"]) ?? undefined,
+      productoServicio: toStr(r["Producto / Servicio"]) ?? undefined,
+      variante: toStr(r["Variante"]) ?? undefined,
+      otrosAtributos: toStr(r["Otros Atributos"]) ?? undefined,
+      marca: toStr(r["Marca"]) ?? undefined,
+      detallePackPromo: toStr(r["Detalle de Productos/Servicios Pack/Promo"]) ?? undefined,
+      precioDeLista: this.toNumericOrUndefined(r["Precio de Lista"]),
+      precioNetoUnitario: this.toNumericOrUndefined(r["Precio Neto Unitario"]),
+      precioBrutoUnitario: this.toNumericOrUndefined(r["Precio Bruto Unitario"]),
+      cantidad: this.toNumericOrUndefined(r["Cantidad"]),
+      ventaTotalNeta: this.toNumericOrUndefined(r["Venta Total Neta"]),
+      totalImpuestos: this.toNumericOrUndefined(r["Total Impuestos"]),
+      ventaTotalBruta: this.toNumericOrUndefined(r["Venta Total Bruta"]),
+      nombreDeDcto: toStr(r["Nombre de dcto"]) ?? undefined,
+      descuentoNeto: this.toNumericOrUndefined(r["Descuento Neto"]),
+      descuentoBruto: this.toNumericOrUndefined(r["Descuento Bruto"]),
+      porcentajeDescuento: toStr(r["% Descuento"]) ?? undefined,
+      costoNetoUnitario: this.toNumericOrUndefined(r["Costo neto unitario"]),
+      costoTotalNeto: this.toNumericOrUndefined(r["Costo Total Neto"]),
+      margen: this.toNumericOrUndefined(r["Margen"]),
+      porcentajeMargen: toStr(r["% Margen"]) ?? undefined,
     }));
     const BATCH_SIZE = 500;
     let total = 0;
     for (let i = 0; i < values.length; i += BATCH_SIZE) {
       const batch = values.slice(i, i + BATCH_SIZE);
-      const result = await db.insert(factVentasRows).values(batch).onConflictDoNothing().returning({ id: factVentasRows.id });
-      total += result.length;
+      const inserted = await insertBatch(db, factVentasRows, batch);
+      total += inserted;
     }
     return total;
   }
@@ -513,23 +511,22 @@ export class DatabaseStorage implements IStorage {
     if (rows.length === 0) return 0;
     const values = rows.map(r => ({
       uploadedFileId,
-      folio: r["Folio"] != null ? String(r["Folio"]) : null,
-      rut: r["RUT"] != null ? String(r["RUT"]) : null,
-      fechaEmision: r["Fecha Emisión"] != null ? String(r["Fecha Emisión"]) : null,
-      estado: r["Estado"] != null ? String(r["Estado"]) : null,
-      razonSocial: r["Razón Social"] != null ? String(r["Razón Social"]) : null,
-      montoExento: this.toNumericOrNull(r["Monto Exento"]),
-      montoNeto: this.toNumericOrNull(r["Monto Neto"]),
-      montoIva: this.toNumericOrNull(r["Monto Iva"]),
-      imptoEspecifico: this.toNumericOrNull(r["Impto. Especifico"]),
-      montoTotal: this.toNumericOrNull(r["Monto Total"]),
-      fechaAcuse: r["Fecha Acuse de Mercadería"] != null ? String(r["Fecha Acuse de Mercadería"]) : null,
-      notificacionComercial: r["Notificación Comercial"] != null ? String(r["Notificación Comercial"]) : null,
-      fechaNotificacionComercial: r["Fecha Notificación Comercial"] != null ? String(r["Fecha Notificación Comercial"]) : null,
-      xmlRecepcionado: r["XML recepcionado"] != null ? String(r["XML recepcionado"]) : null,
+      folio: r["Folio"] != null ? String(r["Folio"]) : undefined,
+      rut: r["RUT"] != null ? String(r["RUT"]) : undefined,
+      fechaEmision: r["Fecha Emisión"] != null ? String(r["Fecha Emisión"]) : undefined,
+      estado: r["Estado"] != null ? String(r["Estado"]) : undefined,
+      razonSocial: r["Razón Social"] != null ? String(r["Razón Social"]) : undefined,
+      montoExento: this.toNumericOrUndefined(r["Monto Exento"]),
+      montoNeto: this.toNumericOrUndefined(r["Monto Neto"]),
+      montoIva: this.toNumericOrUndefined(r["Monto Iva"]),
+      imptoEspecifico: this.toNumericOrUndefined(r["Impto. Especifico"]),
+      montoTotal: this.toNumericOrUndefined(r["Monto Total"]),
+      fechaAcuse: r["Fecha Acuse de Mercadería"] != null ? String(r["Fecha Acuse de Mercadería"]) : undefined,
+      notificacionComercial: r["Notificación Comercial"] != null ? String(r["Notificación Comercial"]) : undefined,
+      fechaNotificacionComercial: r["Fecha Notificación Comercial"] != null ? String(r["Fecha Notificación Comercial"]) : undefined,
+      xmlRecepcionado: r["XML recepcionado"] != null ? String(r["XML recepcionado"]) : undefined,
     }));
-    const result = await db.insert(factComprasRows).values(values).onConflictDoNothing().returning({ id: factComprasRows.id });
-    return result.length;
+    return await insertBatch(db, factComprasRows, values);
   }
 
   async bulkInsertStockRows(uploadedFileId: string, rows: Record<string, unknown>[]): Promise<number> {
@@ -539,13 +536,12 @@ export class DatabaseStorage implements IStorage {
       return {
         uploadedFileId,
         sku: String(SKU ?? ""),
-        producto: Producto != null ? String(Producto) : null,
+        producto: Producto != null ? String(Producto) : undefined,
         stockDate: String(_stockDate ?? ""),
-        extraData: Object.keys(rest).length > 0 ? rest : null,
+        extraData: Object.keys(rest).length > 0 ? rest : undefined,
       };
     });
-    const result = await db.insert(stockRows).values(values).onConflictDoNothing().returning({ id: stockRows.id });
-    return result.length;
+    return await insertBatch(db, stockRows, values);
   }
 
   async bulkInsertGlobal66ClpRows(uploadedFileId: string, rows: Record<string, unknown>[]): Promise<number> {
@@ -553,14 +549,13 @@ export class DatabaseStorage implements IStorage {
     const values = rows.map(r => ({
       uploadedFileId,
       fecha: String(r["Fecha"] ?? ""),
-      descripcion: r["Descripción"] != null ? String(r["Descripción"]) : null,
-      movimiento: r["Movimiento"] != null ? String(r["Movimiento"]) : null,
-      debito: String(Number(r["Débito"] ?? 0)),
-      abono: String(Number(r["Abono"] ?? 0)),
-      saldo: r["Saldo"] != null ? String(r["Saldo"]) : null,
+      descripcion: r["Descripción"] != null ? String(r["Descripción"]) : undefined,
+      movimiento: r["Movimiento"] != null ? String(r["Movimiento"]) : undefined,
+      debito: this.toNumericOrUndefined(r["Débito"]) ?? "0.00",
+      abono: this.toNumericOrUndefined(r["Abono"]) ?? "0.00",
+      saldo: r["Saldo"] != null ? String(r["Saldo"]) : undefined,
     }));
-    const result = await db.insert(cartolaGlobal66ClpRows).values(values).onConflictDoNothing().returning({ id: cartolaGlobal66ClpRows.id });
-    return result.length;
+    return await insertBatch(db, cartolaGlobal66ClpRows, values);
   }
 
   async bulkInsertGlobal66UsdRows(uploadedFileId: string, rows: Record<string, unknown>[]): Promise<number> {
@@ -568,14 +563,13 @@ export class DatabaseStorage implements IStorage {
     const values = rows.map(r => ({
       uploadedFileId,
       fecha: String(r["Fecha"] ?? ""),
-      descripcion: r["Descripción"] != null ? String(r["Descripción"]) : null,
-      movimiento: r["Movimiento"] != null ? String(r["Movimiento"]) : null,
-      debito: String(Number(r["Débito"] ?? 0)),
-      abono: String(Number(r["Abono"] ?? 0)),
-      saldo: r["Saldo"] != null ? String(r["Saldo"]) : null,
+      descripcion: r["Descripción"] != null ? String(r["Descripción"]) : undefined,
+      movimiento: r["Movimiento"] != null ? String(r["Movimiento"]) : undefined,
+      debito: this.toNumericOrUndefined(r["Débito"]) ?? "0.00",
+      abono: this.toNumericOrUndefined(r["Abono"]) ?? "0.00",
+      saldo: r["Saldo"] != null ? String(r["Saldo"]) : undefined,
     }));
-    const result = await db.insert(cartolaGlobal66UsdRows).values(values).onConflictDoNothing().returning({ id: cartolaGlobal66UsdRows.id });
-    return result.length;
+    return await insertBatch(db, cartolaGlobal66UsdRows, values);
   }
 
   async getClientes(): Promise<Cliente[]> {
@@ -588,12 +582,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCliente(data: InsertCliente): Promise<Cliente> {
-    const [c] = await db.insert(clientes).values(data).returning();
-    return c;
+    return await insertAndFetch(db, clientes, data);
   }
 
   async updateCliente(id: string, data: Partial<InsertCliente>): Promise<Cliente | undefined> {
-    const [c] = await db.update(clientes).set(data).where(eq(clientes.id, id)).returning();
+    await db.update(clientes).set(data).where(eq(clientes.id, id));
+    const [c] = await db.select().from(clientes).where(eq(clientes.id, id));
     return c || undefined;
   }
 
@@ -683,8 +677,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createEmailLog(data: InsertEmailLog): Promise<EmailLog> {
-    const [log] = await db.insert(emailLogs).values(data).returning();
-    return log;
+    return await insertAndFetch(db, emailLogs, data);
   }
 
   async getEmailLogsByFactura(facturaKey: string): Promise<EmailLog[]> {
@@ -735,7 +728,7 @@ export class DatabaseStorage implements IStorage {
     let skippedHadEmail = 0;
 
     for (const c of allClientes) {
-      const hasEmail = c.emails && c.emails.length > 0 && c.emails.some(e => e && e.trim());
+      const hasEmail = hasValidEmail(c.emails);
       if (hasEmail) { skippedHadEmail++; continue; }
       if (!c.rut || !c.rut.trim()) { skippedNoMatch++; continue; }
       const email = mostFrequentByRut.get(c.rut.toLowerCase().trim());
@@ -746,11 +739,10 @@ export class DatabaseStorage implements IStorage {
         .set({ emails: [email] })
         .where(sql`${clientes.id} = ${c.id} AND (
           ${clientes.emails} IS NULL
-          OR array_length(${clientes.emails}, 1) IS NULL
-          OR NOT EXISTS (SELECT 1 FROM unnest(${clientes.emails}) e WHERE TRIM(e) <> '')
-        )`)
-        .returning({ id: clientes.id });
-      if (result.length > 0) {
+          OR JSON_LENGTH(${clientes.emails}) = 0
+        )`);
+      const [info] = result as any;
+      if (info && info.affectedRows > 0) {
         updated++;
       } else {
         skippedHadEmail++;
@@ -780,11 +772,10 @@ export class DatabaseStorage implements IStorage {
       if (!fullName) { skippedNoBSale++; continue; }
 
       // Defensive WHERE: solo actualiza si el cliente sigue sin contacto.
-      const result = await db.update(clientes)
+      const [info] = await db.update(clientes)
         .set({ nombreContacto: fullName })
-        .where(sql`${clientes.id} = ${c.id} AND (${clientes.nombreContacto} IS NULL OR TRIM(${clientes.nombreContacto}) = '')`)
-        .returning({ id: clientes.id });
-      if (result.length > 0) updated++;
+        .where(sql`${clientes.id} = ${c.id} AND (${clientes.nombreContacto} IS NULL OR TRIM(${clientes.nombreContacto}) = '')`);
+      if ((info as any).affectedRows > 0) updated++;
       else skippedHadContacto++;
     }
 
@@ -822,11 +813,10 @@ export class DatabaseStorage implements IStorage {
         updates.nombreContacto = personName;
       }
 
-      const result = await db.update(clientes)
+      const [infoUpdate] = await db.update(clientes)
         .set(updates)
-        .where(sql`${clientes.id} = ${c.id} AND LOWER(TRIM(${clientes.nombre})) != LOWER(${company})`)
-        .returning({ id: clientes.id });
-      if (result.length > 0) updated++;
+        .where(sql`${clientes.id} = ${c.id} AND LOWER(TRIM(${clientes.nombre})) != LOWER(${company})`);
+      if ((infoUpdate as any).affectedRows > 0) updated++;
       else alreadyCorrect++;
     }
 
@@ -942,21 +932,22 @@ export class DatabaseStorage implements IStorage {
   async addDiscontinued(sku: string, nombre?: string | null): Promise<DiscontinuedProduct> {
     const skuLower = sku.trim().toLowerCase();
     const nombreClean = nombre?.trim() ? nombre.trim() : null;
-    const [created] = await db
-      .insert(discontinuedProducts)
-      .values({ sku: skuLower, nombre: nombreClean })
-      .onConflictDoUpdate({
-        target: discontinuedProducts.sku,
-        set: { nombre: nombreClean, fechaDescontinuado: new Date() },
-      })
-      .returning();
-    return created;
+    const existing = await db.select().from(discontinuedProducts).where(eq(discontinuedProducts.sku, skuLower));
+    if (existing.length > 0) {
+      await db.update(discontinuedProducts).set({ nombre: nombreClean, fechaDescontinuado: new Date() }).where(eq(discontinuedProducts.sku, skuLower));
+      const [updated] = await db.select().from(discontinuedProducts).where(eq(discontinuedProducts.sku, skuLower));
+      if (!updated) {
+        throw new Error("Failed to fetch updated discontinued product");
+      }
+      return updated;
+    }
+    return await insertAndFetch(db, discontinuedProducts, { sku: skuLower, nombre: nombreClean }, 'sku');
   }
 
   async removeDiscontinued(sku: string): Promise<boolean> {
     const skuLower = sku.trim().toLowerCase();
-    const result = await db.delete(discontinuedProducts).where(eq(discontinuedProducts.sku, skuLower)).returning({ sku: discontinuedProducts.sku });
-    return result.length > 0;
+    const [info] = await db.delete(discontinuedProducts).where(eq(discontinuedProducts.sku, skuLower));
+    return (info as any).affectedRows > 0;
   }
 
   async getDiscontinuedSet(): Promise<Set<string>> {

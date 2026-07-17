@@ -1,33 +1,34 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, serial, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { mysqlTable, varchar, timestamp, json, int, decimal, uniqueIndex, index, text } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import crypto from "crypto";
 
 export * from "./models/auth";
 
-export const fileTypeEnum = ["cartola", "cobranza", "fact_ventas", "fact_ventas_bsale", "fact_compras", "cartola_security", "cartola_falabella", "cartola_global66_clp", "cartola_global66_usd"] as const;
+export const fileTypeEnum = ["cartola", "cobranza", "fact_ventas", "fact_ventas_bsale", "fact_compras", "cartola_security", "cartola_falabella", "cartola_global66_clp", "cartola_global66_usd", "stock"] as const;
 export type FileType = typeof fileTypeEnum[number];
 
-export const uploadedFiles = pgTable("uploaded_files", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  fileType: text("file_type").notNull().$type<FileType>(),
-  originalFilename: text("original_filename").notNull(),
+export const uploadedFiles = mysqlTable("uploaded_files", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  fileType: varchar("file_type", { length: 50 }).notNull().$type<FileType>(),
+  originalFilename: varchar("original_filename", { length: 255 }).notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-  rowCount: integer("row_count").notNull().default(0),
-  status: text("status").notNull().default("processed"),
-  headers: text("headers").array(),
-  data: jsonb("data"),
+  rowCount: int("row_count").notNull().default(0),
+  status: varchar("status", { length: 50 }).notNull().default("processed"),
+  headers: json("headers").$type<string[]>(),
+  data: json("data"),
 }, (table) => [
   index("uploaded_files_file_type_idx").on(table.fileType),
 ]);
+
+export type InsertUploadedFile = typeof uploadedFiles.$inferInsert;
+export type UploadedFile = typeof uploadedFiles.$inferSelect;
 
 export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).omit({
   id: true,
   uploadedAt: true,
 });
-
-export type InsertUploadedFile = z.infer<typeof insertUploadedFileSchema>;
-export type UploadedFile = typeof uploadedFiles.$inferSelect;
 
 export const CENTROS_DE_COSTOS = [
   "C-MARKETING Y PUBLICIDAD",
@@ -60,124 +61,125 @@ export const CENTROS_DE_COSTOS = [
 
 export type CentroCostos = typeof CENTROS_DE_COSTOS[number];
 
-export const centroCostosRules = pgTable("centro_costos_rules", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  pattern: text("pattern").notNull(),
-  centroCostos: text("centro_costos").notNull(),
-  matchType: text("match_type").notNull().default("contains"),
-  priority: integer("priority").notNull().default(0),
+export const centroCostosRules = mysqlTable("centro_costos_rules", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  pattern: varchar("pattern", { length: 255 }).notNull(),
+  centroCostos: varchar("centro_costos", { length: 255 }).notNull(),
+  matchType: varchar("match_type", { length: 50 }).notNull().default("contains"),
+  priority: int("priority").notNull().default(0),
 });
+
+export type InsertCentroCostosRule = typeof centroCostosRules.$inferInsert;
+export type CentroCostosRule = typeof centroCostosRules.$inferSelect;
 
 export const insertCentroCostosRuleSchema = createInsertSchema(centroCostosRules).omit({
   id: true,
 });
 
-export type InsertCentroCostosRule = z.infer<typeof insertCentroCostosRuleSchema>;
-export type CentroCostosRule = typeof centroCostosRules.$inferSelect;
-
-export const centroCostosReviews = pgTable("centro_costos_reviews", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  movementKey: text("movement_key").notNull().unique(),
-  revisado: integer("revisado").notNull().default(0),
-  centroCostos: text("centro_costos"),
-  nDocumentoOverride: text("n_documento_override"),
-  fechaCobroOverride: text("fecha_cobro_override"),
+export const centroCostosReviews = mysqlTable("centro_costos_reviews", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  movementKey: varchar("movement_key", { length: 255 }).notNull().unique(),
+  revisado: int("revisado").notNull().default(0),
+  centroCostos: varchar("centro_costos", { length: 255 }),
+  nDocumentoOverride: varchar("n_documento_override", { length: 100 }),
+  fechaCobroOverride: varchar("fecha_cobro_override", { length: 100 }),
 });
 
 export type CentroCostosReview = typeof centroCostosReviews.$inferSelect;
 
-export const facturaReviews = pgTable("factura_reviews", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  facturaKey: text("factura_key").notNull().unique(),
-  estado: text("estado").notNull().default("pendiente"),
-  cartolaMovementKey: text("cartola_movement_key"),
+export const facturaReviews = mysqlTable("factura_reviews", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  facturaKey: varchar("factura_key", { length: 255 }).notNull().unique(),
+  estado: varchar("estado", { length: 50 }).notNull().default("pendiente").$type<"pendiente" | "pagado" | "propuesto">(),
+  cartolaMovementKey: varchar("cartola_movement_key", { length: 255 }),
 });
 
 export type FacturaReview = typeof facturaReviews.$inferSelect;
 
-export const facturaAutoMatchRejections = pgTable("factura_auto_match_rejections", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  facturaKey: text("factura_key").notNull(),
-  cartolaMovementKey: text("cartola_movement_key").notNull(),
+export const facturaAutoMatchRejections = mysqlTable("factura_auto_match_rejections", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  facturaKey: varchar("factura_key", { length: 255 }).notNull(),
+  cartolaMovementKey: varchar("cartola_movement_key", { length: 255 }).notNull(),
   fechaRechazo: timestamp("fecha_rechazo").defaultNow().notNull(),
-}, (table) => ({
-  uniqFacturaMovement: uniqueIndex("uniq_factura_automatch").on(table.facturaKey, table.cartolaMovementKey),
-}));
+}, (table) => [
+  uniqueIndex("uniq_factura_automatch").on(table.facturaKey, table.cartolaMovementKey),
+]);
 
 export type FacturaAutoMatchRejection = typeof facturaAutoMatchRejections.$inferSelect;
 
-export const facturaPropuestas = pgTable("factura_propuestas", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  facturaKey: text("factura_key").notNull(),
-  tipo: text("tipo").notNull(),
-  cartolaMovementKey: text("cartola_movement_key"),
-  notaManual: text("nota_manual"),
+export const facturaPropuestas = mysqlTable("factura_propuestas", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  facturaKey: varchar("factura_key", { length: 255 }).notNull(),
+  tipo: varchar("tipo", { length: 50 }).notNull(),
+  cartolaMovementKey: varchar("cartola_movement_key", { length: 255 }),
+  notaManual: varchar("nota_manual", { length: 1024 }),
 });
 
 export type FacturaPropuesta = typeof facturaPropuestas.$inferSelect;
 
-export const appUsers = pgTable("app_users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").notNull().unique(),
-  name: text("name"),
-  role: text("role").notNull().default("user"),
-  status: text("status").notNull().default("invited"),
-  invitedBy: text("invited_by"),
+export const appUsers = mysqlTable("app_users", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }),
+  role: varchar("role", { length: 50 }).notNull().default("user"),
+  status: varchar("status", { length: 50 }).notNull().default("invited"),
+  invitedBy: varchar("invited_by", { length: 255 }),
   invitedAt: timestamp("invited_at").defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
+  password: varchar("password", { length: 255 }),
 });
 
 export type AppUser = typeof appUsers.$inferSelect;
 export type InsertAppUser = typeof appUsers.$inferInsert;
 
-export const ventasAmigo = pgTable("ventas_amigo", {
-  id: serial("id").primaryKey(),
+export const ventasAmigo = mysqlTable("ventas_amigo", {
+  id: int("id").primaryKey().autoincrement(),
   fechaRegistro: timestamp("fecha_registro").defaultNow().notNull(),
-  fechaCompra: text("fecha_compra").notNull(),
-  nombre: text("nombre").notNull(),
-  monto: integer("monto").notNull(),
-  unidades: integer("unidades").notNull(),
-  costoProducto: integer("costo_producto"),
-  estado: text("estado").notNull().default("pendiente"),
+  fechaCompra: varchar("fecha_compra", { length: 50 }).notNull(),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  monto: int("monto").notNull(),
+  unidades: int("unidades").notNull(),
+  costoProducto: int("costo_producto"),
+  estado: varchar("estado", { length: 50 }).notNull().default("pendiente"),
 });
+
+export type InsertVentaAmigo = typeof ventasAmigo.$inferInsert;
+export type VentaAmigo = typeof ventasAmigo.$inferSelect;
 
 export const insertVentaAmigoSchema = createInsertSchema(ventasAmigo).omit({
   id: true,
   fechaRegistro: true,
 });
 
-export type InsertVentaAmigo = z.infer<typeof insertVentaAmigoSchema>;
-export type VentaAmigo = typeof ventasAmigo.$inferSelect;
-
-export const discontinuedProducts = pgTable("discontinued_products", {
-  sku: text("sku").primaryKey(),
-  nombre: text("nombre"),
+export const discontinuedProducts = mysqlTable("discontinued_products", {
+  sku: varchar("sku", { length: 100 }).primaryKey(),
+  nombre: varchar("nombre", { length: 255 }),
   fechaDescontinuado: timestamp("fecha_descontinuado").defaultNow().notNull(),
 });
+
+export type InsertSampleProduct = typeof discontinuedProducts.$inferInsert;
+export type DiscontinuedProduct = typeof discontinuedProducts.$inferSelect;
 
 export const insertDiscontinuedProductSchema = createInsertSchema(discontinuedProducts).omit({
   fechaDescontinuado: true,
 });
 
-export type InsertDiscontinuedProduct = z.infer<typeof insertDiscontinuedProductSchema>;
-export type DiscontinuedProduct = typeof discontinuedProducts.$inferSelect;
-
-export const cartolaRows = pgTable("cartola_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  fecha: text("fecha").notNull(),
-  detalleMovimiento: text("detalle_movimiento").notNull(),
-  chequeOCargo: numeric("cheque_o_cargo"),
-  depositoOAbono: numeric("deposito_o_abono"),
-  saldo: numeric("saldo"),
-  doctoNro: text("docto_nro"),
-  trn: text("trn"),
-  caja: text("caja"),
-  sucursal: text("sucursal"),
+export const cartolaRows = mysqlTable("cartola_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  fecha: varchar("fecha", { length: 50 }).notNull(),
+  detalleMovimiento: varchar("detalle_movimiento", { length: 512 }).notNull(),
+  chequeOCargo: decimal("cheque_o_cargo", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  depositoOAbono: decimal("deposito_o_abono", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  saldo: decimal("saldo", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  doctoNro: varchar("docto_nro", { length: 100 }),
+  trn: varchar("trn", { length: 100 }),
+  caja: varchar("caja", { length: 100 }),
+  sucursal: varchar("sucursal", { length: 100 }),
 }, (table) => [
   uniqueIndex("cartola_rows_dedup_idx").on(
-    sql`LOWER(${table.fecha})`,
-    sql`LOWER(${table.detalleMovimiento})`,
+    table.fecha,
+    table.detalleMovimiento,
     table.chequeOCargo,
     table.depositoOAbono,
   ),
@@ -185,19 +187,19 @@ export const cartolaRows = pgTable("cartola_rows", {
 
 export type CartolaRow = typeof cartolaRows.$inferSelect;
 
-export const cartolaSecurityRows = pgTable("cartola_security_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  fecha: text("fecha").notNull(),
-  detalleMovimiento: text("detalle_movimiento").notNull(),
-  doctoNro: text("docto_nro"),
-  cargo: numeric("cargo"),
-  abono: numeric("abono"),
-  saldo: numeric("saldo"),
+export const cartolaSecurityRows = mysqlTable("cartola_security_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  fecha: varchar("fecha", { length: 50 }).notNull(),
+  detalleMovimiento: varchar("detalle_movimiento", { length: 512 }).notNull(),
+  doctoNro: varchar("docto_nro", { length: 100 }),
+  cargo: decimal("cargo", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  abono: decimal("abono", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  saldo: decimal("saldo", { precision: 15, scale: 2 }).notNull().default("0.00"),
 }, (table) => [
   uniqueIndex("cartola_security_rows_dedup_idx").on(
-    sql`LOWER(${table.fecha})`,
-    sql`LOWER(${table.detalleMovimiento})`,
+    table.fecha,
+    table.detalleMovimiento,
     table.cargo,
     table.abono,
   ),
@@ -205,20 +207,20 @@ export const cartolaSecurityRows = pgTable("cartola_security_rows", {
 
 export type CartolaSecurityRow = typeof cartolaSecurityRows.$inferSelect;
 
-export const cartolaFalabellaRows = pgTable("cartola_falabella_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  fecha: text("fecha").notNull(),
-  oficina: text("oficina"),
-  nroDoc: text("nro_doc"),
-  descripcion: text("descripcion"),
-  cargo: numeric("cargo"),
-  abono: numeric("abono"),
-  saldo: numeric("saldo"),
+export const cartolaFalabellaRows = mysqlTable("cartola_falabella_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  fecha: varchar("fecha", { length: 50 }).notNull(),
+  oficina: varchar("oficina", { length: 100 }),
+  nroDoc: varchar("nro_doc", { length: 100 }),
+  descripcion: varchar("descripcion", { length: 512 }).notNull().default(""),
+  cargo: decimal("cargo", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  abono: decimal("abono", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  saldo: decimal("saldo", { precision: 15, scale: 2 }).notNull().default("0.00"),
 }, (table) => [
   uniqueIndex("cartola_falabella_rows_dedup_idx").on(
-    sql`LOWER(${table.fecha})`,
-    sql`LOWER(${table.descripcion})`,
+    table.fecha,
+    table.descripcion,
     table.cargo,
     table.abono,
   ),
@@ -226,158 +228,158 @@ export const cartolaFalabellaRows = pgTable("cartola_falabella_rows", {
 
 export type CartolaFalabellaRow = typeof cartolaFalabellaRows.$inferSelect;
 
-export const cobranzaRows = pgTable("cobranza_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  tipoDocumento: text("tipo_documento"),
-  nDocumento: text("n_documento"),
-  rutCliente: text("rut_cliente"),
-  fechaEmision: text("fecha_emision"),
-  montoExento: text("monto_exento"),
-  montoNeto: text("monto_neto"),
-  montoIva: text("monto_iva"),
-  imptoEspecifico: text("impto_especifico"),
-  montoTotal: text("monto_total"),
-  fechaAcuse: text("fecha_acuse"),
-  notificacionComercial: text("notificacion_comercial"),
-  fechaNotificacionComercial: text("fecha_notificacion_comercial"),
-  xmlRecepcionado: text("xml_recepcionado"),
-  estado: text("estado"),
+export const cobranzaRows = mysqlTable("cobranza_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  tipoDocumento: varchar("tipo_documento", { length: 100 }).notNull().default(""),
+  nDocumento: varchar("n_documento", { length: 100 }).notNull().default(""),
+  rutCliente: varchar("rut_cliente", { length: 50 }).notNull().default(""),
+  fechaEmision: varchar("fecha_emision", { length: 50 }).notNull().default(""),
+  montoExento: varchar("monto_exento", { length: 50 }),
+  montoNeto: varchar("monto_neto", { length: 50 }),
+  montoIva: varchar("monto_iva", { length: 50 }),
+  imptoEspecifico: varchar("impto_especifico", { length: 50 }),
+  montoTotal: varchar("monto_total", { length: 50 }),
+  fechaAcuse: varchar("fecha_acuse", { length: 50 }),
+  notificacionComercial: varchar("notificacion_comercial", { length: 255 }),
+  fechaNotificacionComercial: varchar("fecha_notificacion_comercial", { length: 50 }),
+  xmlRecepcionado: varchar("xml_recepcionado", { length: 50 }),
+  estado: varchar("estado", { length: 50 }),
 }, (table) => [
   uniqueIndex("cobranza_rows_dedup_idx").on(
-    sql`LOWER(${table.tipoDocumento})`,
-    sql`LOWER(${table.nDocumento})`,
-    sql`LOWER(${table.rutCliente})`,
-    sql`LOWER(${table.fechaEmision})`,
+    table.tipoDocumento,
+    table.nDocumento,
+    table.rutCliente,
+    table.fechaEmision,
   ),
 ]);
 
 export type CobranzaRow = typeof cobranzaRows.$inferSelect;
 
-export const factVentasRows = pgTable("fact_ventas_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  tipoMovimiento: text("tipo_movimiento"),
-  tipoDeDocumento: text("tipo_de_documento"),
-  numeroDocumento: text("numero_documento"),
-  fechaDeEmision: text("fecha_de_emision"),
-  trackingNumber: text("tracking_number"),
-  fechaVenta: text("fecha_venta"),
-  horaVenta: text("hora_venta"),
-  sucursal: text("sucursal"),
-  vendedor: text("vendedor"),
-  nombreCliente: text("nombre_cliente"),
-  clienteRut: text("cliente_rut"),
-  emailCliente: text("email_cliente"),
-  clienteDireccion: text("cliente_direccion"),
-  clienteComuna: text("cliente_comuna"),
-  clienteCiudad: text("cliente_ciudad"),
-  listaDePrecio: text("lista_de_precio"),
-  tipoDeEntrega: text("tipo_de_entrega"),
-  moneda: text("moneda"),
-  tipoDeProductoServicio: text("tipo_de_producto_servicio"),
-  sku: text("sku"),
-  productoServicio: text("producto_servicio"),
-  variante: text("variante"),
-  otrosAtributos: text("otros_atributos"),
-  marca: text("marca"),
-  detallePackPromo: text("detalle_pack_promo"),
-  precioDeLista: numeric("precio_de_lista"),
-  precioNetoUnitario: numeric("precio_neto_unitario"),
-  precioBrutoUnitario: numeric("precio_bruto_unitario"),
-  cantidad: numeric("cantidad"),
-  ventaTotalNeta: numeric("venta_total_neta"),
-  totalImpuestos: numeric("total_impuestos"),
-  ventaTotalBruta: numeric("venta_total_bruta"),
-  nombreDeDcto: text("nombre_de_dcto"),
-  descuentoNeto: numeric("descuento_neto"),
-  descuentoBruto: numeric("descuento_bruto"),
-  porcentajeDescuento: text("porcentaje_descuento"),
-  costoNetoUnitario: numeric("costo_neto_unitario"),
-  costoTotalNeto: numeric("costo_total_neto"),
-  margen: numeric("margen"),
-  porcentajeMargen: text("porcentaje_margen"),
+export const factVentasRows = mysqlTable("fact_ventas_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  tipoMovimiento: varchar("tipo_movimiento", { length: 100 }).notNull().default(""),
+  tipoDeDocumento: varchar("tipo_de_documento", { length: 100 }),
+  numeroDocumento: varchar("numero_documento", { length: 100 }).notNull().default(""),
+  fechaDeEmision: varchar("fecha_de_emision", { length: 50 }),
+  trackingNumber: varchar("tracking_number", { length: 100 }),
+  fechaVenta: varchar("fecha_venta", { length: 50 }),
+  horaVenta: varchar("hora_venta", { length: 50 }),
+  sucursal: varchar("sucursal", { length: 100 }),
+  vendedor: varchar("vendedor", { length: 100 }),
+  nombreCliente: varchar("nombre_cliente", { length: 255 }),
+  clienteRut: varchar("cliente_rut", { length: 50 }),
+  emailCliente: varchar("email_cliente", { length: 255 }),
+  clienteDireccion: varchar("cliente_direccion", { length: 255 }),
+  clienteComuna: varchar("cliente_comuna", { length: 100 }),
+  clienteCiudad: varchar("cliente_ciudad", { length: 100 }),
+  listaDePrecio: varchar("lista_de_precio", { length: 100 }),
+  tipoDeEntrega: varchar("tipo_de_entrega", { length: 100 }),
+  moneda: varchar("moneda", { length: 50 }),
+  tipoDeProductoServicio: varchar("tipo_de_producto_servicio", { length: 100 }),
+  sku: varchar("sku", { length: 100 }).notNull().default(""),
+  productoServicio: varchar("producto_servicio", { length: 255 }),
+  variante: varchar("variante", { length: 100 }),
+  otrosAtributos: varchar("otros_atributos", { length: 255 }),
+  marca: varchar("marca", { length: 100 }),
+  detallePackPromo: varchar("detalle_pack_promo", { length: 512 }),
+  precioDeLista: decimal("precio_de_lista", { precision: 15, scale: 2 }),
+  precioNetoUnitario: decimal("precio_neto_unitario", { precision: 15, scale: 2 }),
+  precioBrutoUnitario: decimal("precio_bruto_unitario", { precision: 15, scale: 2 }),
+  cantidad: decimal("cantidad", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  ventaTotalNeta: decimal("venta_total_neta", { precision: 15, scale: 2 }),
+  totalImpuestos: decimal("total_impuestos", { precision: 15, scale: 2 }),
+  ventaTotalBruta: decimal("venta_total_bruta", { precision: 15, scale: 2 }),
+  nombreDeDcto: varchar("nombre_de_dcto", { length: 100 }),
+  descuentoNeto: decimal("descuento_neto", { precision: 15, scale: 2 }),
+  descuentoBruto: decimal("descuento_bruto", { precision: 15, scale: 2 }),
+  porcentajeDescuento: varchar("porcentaje_descuento", { length: 50 }),
+  costoNetoUnitario: decimal("costo_neto_unitario", { precision: 15, scale: 2 }),
+  costoTotalNeto: decimal("costo_total_neto", { precision: 15, scale: 2 }),
+  margen: decimal("margen", { precision: 15, scale: 2 }),
+  porcentajeMargen: varchar("porcentaje_margen", { length: 50 }),
 }, (table) => [
   uniqueIndex("fact_ventas_rows_dedup_idx").on(
-    sql`LOWER(${table.numeroDocumento})`,
-    sql`LOWER(${table.sku})`,
-    sql`LOWER(${table.tipoMovimiento})`,
+    table.numeroDocumento,
+    table.sku,
+    table.tipoMovimiento,
     table.cantidad,
   ),
 ]);
 
 export type FactVentasRow = typeof factVentasRows.$inferSelect;
 
-export const factComprasRows = pgTable("fact_compras_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  folio: text("folio"),
-  rut: text("rut"),
-  fechaEmision: text("fecha_emision"),
-  estado: text("estado"),
-  razonSocial: text("razon_social"),
-  montoExento: numeric("monto_exento"),
-  montoNeto: numeric("monto_neto"),
-  montoIva: numeric("monto_iva"),
-  imptoEspecifico: numeric("impto_especifico"),
-  montoTotal: numeric("monto_total"),
-  fechaAcuse: text("fecha_acuse"),
-  notificacionComercial: text("notificacion_comercial"),
-  fechaNotificacionComercial: text("fecha_notificacion_comercial"),
-  xmlRecepcionado: text("xml_recepcionado"),
+export const factComprasRows = mysqlTable("fact_compras_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  folio: varchar("folio", { length: 100 }).notNull().default(""),
+  rut: varchar("rut", { length: 50 }).notNull().default(""),
+  fechaEmision: varchar("fecha_emision", { length: 50 }).notNull().default(""),
+  estado: varchar("estado", { length: 50 }).notNull().default(""),
+  razonSocial: varchar("razon_social", { length: 255 }),
+  montoExento: decimal("monto_exento", { precision: 15, scale: 2 }),
+  montoNeto: decimal("monto_neto", { precision: 15, scale: 2 }),
+  montoIva: decimal("monto_iva", { precision: 15, scale: 2 }),
+  imptoEspecifico: decimal("impto_especifico", { precision: 15, scale: 2 }),
+  montoTotal: decimal("monto_total", { precision: 15, scale: 2 }),
+  fechaAcuse: varchar("fecha_acuse", { length: 50 }),
+  notificacionComercial: varchar("notificacion_comercial", { length: 255 }),
+  fechaNotificacionComercial: varchar("fecha_notificacion_comercial", { length: 50 }),
+  xmlRecepcionado: varchar("xml_recepcionado", { length: 50 }),
 }, (table) => [
   uniqueIndex("fact_compras_rows_dedup_idx").on(
-    sql`LOWER(${table.folio})`,
-    sql`LOWER(${table.rut})`,
-    sql`LOWER(${table.fechaEmision})`,
-    sql`LOWER(${table.estado})`,
+    table.folio,
+    table.rut,
+    table.fechaEmision,
+    table.estado,
   ),
 ]);
 
 export type FactComprasRow = typeof factComprasRows.$inferSelect;
 
-export const stockRows = pgTable("stock_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  sku: text("sku").notNull(),
-  producto: text("producto"),
-  stockDate: text("stock_date").notNull(),
-  extraData: jsonb("extra_data"),
+export const stockRows = mysqlTable("stock_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  sku: varchar("sku", { length: 100 }).notNull(),
+  producto: varchar("producto", { length: 255 }),
+  stockDate: varchar("stock_date", { length: 50 }).notNull(),
+  extraData: json("extra_data"),
 }, (table) => [
   uniqueIndex("stock_rows_dedup_idx").on(
-    sql`LOWER(${table.sku})`,
-    sql`LOWER(${table.stockDate})`,
+    table.sku,
+    table.stockDate,
   ),
 ]);
 
 export type StockRow = typeof stockRows.$inferSelect;
 
-export const cartolaGlobal66ClpRows = pgTable("cartola_global66_clp_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  fecha: text("fecha").notNull(),
-  descripcion: text("descripcion"),
-  movimiento: text("movimiento"),
-  debito: numeric("debito"),
-  abono: numeric("abono"),
-  saldo: numeric("saldo"),
+export const cartolaGlobal66ClpRows = mysqlTable("cartola_global66_clp_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  fecha: varchar("fecha", { length: 50 }).notNull(),
+  descripcion: varchar("descripcion", { length: 512 }).notNull().default(""),
+  movimiento: varchar("movimiento", { length: 100 }),
+  debito: decimal("debito", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  abono: decimal("abono", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  saldo: decimal("saldo", { precision: 15, scale: 2 }),
 }, (table) => [
   uniqueIndex("global66_clp_rows_dedup_idx").on(
     table.fecha,
-    sql`LOWER(COALESCE(${table.descripcion}, ''))`,
-    sql`COALESCE(${table.debito}::text, '0')`,
-    sql`COALESCE(${table.abono}::text, '0')`,
+    table.descripcion,
+    table.debito,
+    table.abono,
   ),
 ]);
 
-export const clientes = pgTable("clientes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  nombre: text("nombre").notNull(),
-  razonSocial: text("razon_social"),
-  rut: text("rut"),
-  emails: text("emails").array().notNull().default(sql`ARRAY[]::text[]`),
-  telefono: text("telefono"),
-  nombreContacto: text("nombre_contacto"),
+export const clientes = mysqlTable("clientes", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  razonSocial: varchar("razon_social", { length: 255 }),
+  rut: varchar("rut", { length: 50 }),
+  emails: json("emails").$type<string[]>().notNull(),
+  telefono: varchar("telefono", { length: 50 }),
+  nombreContacto: varchar("nombre_contacto", { length: 255 }),
   notas: text("notas"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
@@ -385,47 +387,47 @@ export const clientes = pgTable("clientes", {
   index("clientes_nombre_idx").on(table.nombre),
 ]);
 
+export type InsertCliente = typeof clientes.$inferInsert;
+export type Cliente = typeof clientes.$inferSelect;
+
 export const insertClienteSchema = createInsertSchema(clientes).omit({
   id: true,
   createdAt: true,
 });
 
-export type InsertCliente = z.infer<typeof insertClienteSchema>;
-export type Cliente = typeof clientes.$inferSelect;
-
-export const emailLogs = pgTable("email_logs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  facturaKey: text("factura_key").notNull(),
-  clienteId: varchar("cliente_id").references(() => clientes.id, { onDelete: "set null" }),
-  destinatarios: text("destinatarios").array().notNull().default(sql`ARRAY[]::text[]`),
-  asunto: text("asunto").notNull(),
-  template: text("template").notNull().default("cobranza"),
+export const emailLogs = mysqlTable("email_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  facturaKey: varchar("factura_key", { length: 255 }).notNull(),
+  clienteId: varchar("cliente_id", { length: 36 }),
+  destinatarios: json("destinatarios").$type<string[]>().notNull(),
+  asunto: varchar("asunto", { length: 255 }).notNull(),
+  template: varchar("template", { length: 50 }).notNull().default("cobranza"),
   cuerpo: text("cuerpo"),
   enviadoAt: timestamp("enviado_at").defaultNow().notNull(),
 });
+
+export type InsertEmailLog = typeof emailLogs.$inferInsert;
+export type EmailLog = typeof emailLogs.$inferSelect;
 
 export const insertEmailLogSchema = createInsertSchema(emailLogs).omit({
   id: true,
   enviadoAt: true,
 });
 
-export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
-export type EmailLog = typeof emailLogs.$inferSelect;
-
-export const cartolaGlobal66UsdRows = pgTable("cartola_global66_usd_rows", {
-  id: serial("id").primaryKey(),
-  uploadedFileId: varchar("uploaded_file_id").notNull().references(() => uploadedFiles.id, { onDelete: "cascade" }),
-  fecha: text("fecha").notNull(),
-  descripcion: text("descripcion"),
-  movimiento: text("movimiento"),
-  debito: numeric("debito"),
-  abono: numeric("abono"),
-  saldo: numeric("saldo"),
+export const cartolaGlobal66UsdRows = mysqlTable("cartola_global66_usd_rows", {
+  id: int("id").primaryKey().autoincrement(),
+  uploadedFileId: varchar("uploaded_file_id", { length: 36 }).notNull(),
+  fecha: varchar("fecha", { length: 50 }).notNull(),
+  descripcion: varchar("descripcion", { length: 512 }).notNull().default(""),
+  movimiento: varchar("movimiento", { length: 100 }),
+  debito: decimal("debito", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  abono: decimal("abono", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  saldo: decimal("saldo", { precision: 15, scale: 2 }),
 }, (table) => [
   uniqueIndex("global66_usd_rows_dedup_idx").on(
     table.fecha,
-    sql`LOWER(COALESCE(${table.descripcion}, ''))`,
-    sql`COALESCE(${table.debito}::text, '0')`,
-    sql`COALESCE(${table.abono}::text, '0')`,
+    table.descripcion,
+    table.debito,
+    table.abono,
   ),
 ]);
