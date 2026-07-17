@@ -149,9 +149,14 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-xs text-gray-400 text-center mt-6">
-            Solo usuarios registrados pueden acceder. Si no tienes acceso, solicítalo al administrador de la plataforma.
-          </p>
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-xs text-muted-foreground">
+              ¿Olvidaste tu contraseña? Contacta al administrador de tu cuenta para restablecerla.
+            </p>
+            <p className="text-xs text-gray-400">
+              Solo usuarios registrados pueden acceder. Si no tienes acceso, solicítalo al administrador de la plataforma.
+            </p>
+          </div>
         </div>
       </div>
     </div>

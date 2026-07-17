@@ -1,5 +1,5 @@
 import brikaLogo from "@assets/image_1772290961922.png";
-import { BarChart3, Landmark, FileCheck, Users, LogOut, ShoppingCart, ShoppingBag, Heart, PackageSearch, ClipboardList, Contact } from "lucide-react";
+import { BarChart3, Landmark, FileCheck, Users, LogOut, ShoppingCart, ShoppingBag, Heart, PackageSearch, ClipboardList, Contact, User } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AppUser {
   id: string;
@@ -46,6 +47,8 @@ function getInitials(name: string | null, email: string): string {
 
 export function AppSidebar({ user }: { user: AppUser }) {
   const [location] = useLocation();
+  const { logout, isLoggingOut } = useAuth();
+
 
   const allModules = user.role === "admin"
     ? [...modules, { title: "Usuarios", url: "/usuarios", icon: Users }]
@@ -105,15 +108,26 @@ export function AppSidebar({ user }: { user: AppUser }) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 flex flex-col gap-2">
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-          onClick={() => { window.location.href = "/api/logout"; }}
+          asChild
+        >
+          <Link href="/perfil">
+            <User className="h-4 w-4" />
+            <span>Mi perfil</span>
+          </Link>
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+          onClick={() => logout()}
+          disabled={isLoggingOut}
           data-testid="button-logout"
         >
           <LogOut className="h-4 w-4" />
-          Cerrar sesión
+          {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
         </Button>
       </SidebarFooter>
     </Sidebar>

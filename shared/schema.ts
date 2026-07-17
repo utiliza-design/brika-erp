@@ -127,6 +127,7 @@ export const appUsers = mysqlTable("app_users", {
   invitedAt: timestamp("invited_at").defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
   password: varchar("password", { length: 255 }),
+  mustChangePassword: int("must_change_password").notNull().default(0),
 });
 
 export type AppUser = typeof appUsers.$inferSelect;

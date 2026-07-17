@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Users, Pencil } from "lucide-react";
+import { UserPlus, Users, Pencil, KeyRound } from "lucide-react";
 
 interface AppUser {
   id: string;
@@ -78,11 +78,19 @@ export default function UsuariosPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState<string>("user");
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const [editUser, setEditUser] = useState<AppUser | null>(null);
+  const [editName, setEditName] = useState<string>("");
   const [editRole, setEditRole] = useState<string>("user");
   const [editOpen, setEditOpen] = useState(false);
+
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPasswordUser, setTempPasswordUser] = useState<AppUser | null>(null);
+  const [tempOpen, setTempOpen] = useState(false);
+
 
   const { data: currentUser } = useQuery<CurrentUser>({
     queryKey: ["/api/me"],
@@ -95,23 +103,28 @@ export default function UsuariosPage() {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const res = await fetch("/api/app-users/invite", {
+    mutationFn: async (data: { email: string; name: string; role: string }) => {
+      const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(data),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Error al invitar");
+        throw new Error(err.error || "Error al agregar usuario");
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/app-users"] });
-      toast({ title: "Usuario agregado", description: `${inviteEmail} ahora tiene acceso a la plataforma` });
+      setTempPasswordUser(data.user);
+      setTempPassword(data.temporaryPassword);
+      setTempOpen(true);
+      toast({ title: "Usuario agregado", description: "El usuario ha sido creado con clave temporal" });
       setInviteOpen(false);
       setInviteEmail("");
+      setInviteName("");
+      setInviteRole("user");
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -141,23 +154,24 @@ export default function UsuariosPage() {
   });
 
   const roleMutation = useMutation({
-    mutationFn: async ({ id, role }: { id: string; role: string }) => {
-      const res = await fetch(`/api/app-users/${id}/role`, {
+    mutationFn: async ({ id, name, role }: { id: string; name: string; role: string }) => {
+      const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ name, role }),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Error al actualizar rol");
+        throw new Error(err.error || "Error al actualizar usuario");
       }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/app-users"] });
-      toast({ title: "Rol actualizado" });
+      toast({ title: "Usuario actualizado" });
       setEditOpen(false);
       setEditUser(null);
+      setEditName("");
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -182,6 +196,30 @@ export default function UsuariosPage() {
     },
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/users/${id}/reset-password`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Error al restablecer contraseña");
+      }
+      return res.json();
+    },
+    onSuccess: (data, id) => {
+      const user = users.find((u) => u.id === id);
+      setTempPasswordUser(user || null);
+      setTempPassword(data.temporaryPassword);
+      setTempOpen(true);
+      toast({ title: "Contraseña restablecida", description: "Se ha generado una clave temporal" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+
   if (currentUser && currentUser.role !== "admin") {
     setLocation("/");
     return null;
@@ -189,6 +227,7 @@ export default function UsuariosPage() {
 
   const openEdit = (user: AppUser) => {
     setEditUser(user);
+    setEditName(user.name || "");
     setEditRole(user.role);
     setEditOpen(true);
   };
@@ -204,7 +243,7 @@ export default function UsuariosPage() {
           </div>
         </div>
 
-        <Dialog open={inviteOpen} onOpenChange={(open) => { if (!open) { setInviteOpen(false); setInviteEmail(""); } else setInviteOpen(true); }}>
+        <Dialog open={inviteOpen} onOpenChange={(open) => { if (!open) { setInviteOpen(false); setInviteEmail(""); setInviteName(""); setInviteRole("user"); } else setInviteOpen(true); }}>
           <DialogTrigger asChild>
             <Button data-testid="button-invite-user" className="gap-2">
               <UserPlus className="h-4 w-4" />
@@ -215,47 +254,82 @@ export default function UsuariosPage() {
             <DialogHeader>
               <DialogTitle>Agregar usuario</DialogTitle>
               <DialogDescription>
-                Ingresa el email de Google del usuario. Podrá iniciar sesión de inmediato con su cuenta Google.
+                Crea un nuevo usuario en la plataforma. Se le generará una clave temporal que deberá cambiar al iniciar sesión.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-2">
-              <Input
-                type="email"
-                placeholder="correo@gmail.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                data-testid="input-invite-email"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && inviteEmail) inviteMutation.mutate(inviteEmail);
-                }}
-              />
+            <div className="py-2 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-name">Nombre</Label>
+                <Input
+                  id="invite-name"
+                  type="text"
+                  placeholder="Nombre del usuario"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  data-testid="input-invite-name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-email">Correo Electrónico</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  data-testid="input-invite-email"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-role">Rol</Label>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger id="invite-role" data-testid="select-invite-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuario</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setInviteOpen(false); setInviteEmail(""); }}>Cancelar</Button>
+              <Button variant="outline" onClick={() => { setInviteOpen(false); setInviteEmail(""); setInviteName(""); setInviteRole("user"); }}>Cancelar</Button>
               <Button
-                onClick={() => inviteMutation.mutate(inviteEmail)}
-                disabled={!inviteEmail || inviteMutation.isPending}
+                onClick={() => inviteMutation.mutate({ email: inviteEmail, name: inviteName, role: inviteRole })}
+                disabled={!inviteEmail || !inviteName || inviteMutation.isPending}
                 data-testid="button-confirm-invite"
               >
-                {inviteMutation.isPending ? "Guardando..." : "Agregar"}
+                {inviteMutation.isPending ? "Creando..." : "Crear Usuario"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <Dialog open={editOpen} onOpenChange={(open) => { if (!open) { setEditOpen(false); setEditUser(null); } }}>
+      <Dialog open={editOpen} onOpenChange={(open) => { if (!open) { setEditOpen(false); setEditUser(null); setEditName(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar usuario</DialogTitle>
             <DialogDescription>
-              Cambia el rol de <strong>{editUser?.name || editUser?.email}</strong>.
+              Modifica la información de <strong>{editUser?.name || editUser?.email}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2 space-y-3">
+          <div className="py-2 space-y-4">
             <div className="space-y-1.5">
               <Label>Email</Label>
               <p className="text-sm text-muted-foreground">{editUser?.email}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-name">Nombre</Label>
+              <Input
+                id="edit-name"
+                type="text"
+                placeholder="Nombre del usuario"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                data-testid="input-edit-name"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-role">Rol</Label>
@@ -276,10 +350,10 @@ export default function UsuariosPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setEditOpen(false); setEditUser(null); }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setEditOpen(false); setEditUser(null); setEditName(""); }}>Cancelar</Button>
             <Button
-              onClick={() => editUser && roleMutation.mutate({ id: editUser.id, role: editRole })}
-              disabled={!editUser || roleMutation.isPending || editRole === editUser?.role}
+              onClick={() => editUser && roleMutation.mutate({ id: editUser.id, name: editName, role: editRole })}
+              disabled={!editUser || roleMutation.isPending || (editRole === editUser?.role && editName === (editUser?.name || ""))}
               data-testid="button-confirm-edit-role"
             >
               {roleMutation.isPending ? "Guardando..." : "Guardar"}
@@ -354,6 +428,39 @@ export default function UsuariosPage() {
                           </Button>
                         )}
 
+                        {!isCurrentUser && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                disabled={resetPasswordMutation.isPending}
+                                data-testid={`button-reset-password-${user.id}`}
+                              >
+                                <KeyRound className="h-3 w-3" />
+                                Restablecer
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Restablecer contraseña?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Se generará una clave temporal para <strong>{user.name || user.email}</strong> y se le obligará a cambiarla en su próximo inicio de sesión. La contraseña actual quedará invalidada de inmediato.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => resetPasswordMutation.mutate(user.id)}
+                                >
+                                  Restablecer
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+
                         {user.status !== "revoked" ? (
                           <Button
                             size="sm"
@@ -417,6 +524,44 @@ export default function UsuariosPage() {
           </tbody>
         </table>
       </div>
+
+      <Dialog open={tempOpen} onOpenChange={(open) => { if (!open) { setTempOpen(false); setTempPassword(null); setTempPasswordUser(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva Clave Temporal</DialogTitle>
+            <DialogDescription>
+              Se ha generado una contraseña temporal para <strong>{tempPasswordUser?.name || tempPasswordUser?.email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 space-y-2">
+              <p className="font-semibold">⚠️ IMPORTANTE:</p>
+              <p>Esta contraseña solo se mostrará <strong>una vez</strong>. Cópiala ahora y entrégala al usuario por un canal seguro (WhatsApp, en persona, etc.).</p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Input
+                readOnly
+                value={tempPassword || ""}
+                className="font-mono text-lg text-center tracking-wider bg-gray-50 h-12"
+              />
+              <Button
+                onClick={() => {
+                  if (tempPassword) {
+                    navigator.clipboard.writeText(tempPassword);
+                    toast({ title: "Copiado", description: "Clave temporal copiada al portapapeles" });
+                  }
+                }}
+              >
+                Copiar
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setTempOpen(false); setTempPassword(null); setTempPasswordUser(null); }}>Cerrar y Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -8,10 +8,14 @@ import { parseCartolaFile } from "./parsers/cartola-parser";
 import { parseSecurityFile } from "./parsers/security-parser";
 import { parseFalabellaFile } from "./parsers/falabella-parser";
 import { parseGlobal66File } from "./parsers/global66-parser";
-import { isAuthenticated } from "./replit_integrations/auth";
+import { isAuthenticated, updateUserPassword } from "./replit_integrations/auth";
+import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { sendInvitationEmail, sendEmail } from "./email";
 import { isConfigured as isBsaleConfigured, syncVentas, syncCobranza, syncFactCompras, fetchBsaleStock } from "./bsale";
 import { cacheGet, cacheSet, cacheInvalidateAll, cacheInvalidatePrefix } from "./cache";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 type DataRow = Record<string, unknown> & { __deleted?: boolean };
 
@@ -79,6 +83,17 @@ const requireAppAccess: RequestHandler = (req, res, next) => {
         return res.status(403).json({ denied: true, reason: "revoked" });
       }
 
+      if (appUser.mustChangePassword === 1) {
+        const ALLOWED_CHANGE_PASSWORD_PATHS = [
+          "/me",
+          "/logout",
+          "/account/change-password",
+        ];
+        if (!ALLOWED_CHANGE_PASSWORD_PATHS.includes(req.path)) {
+          return res.status(403).json({ mustChangePassword: true, message: "Cambio de contraseña obligatorio" });
+        }
+      }
+
       const name = [user.claims?.first_name, user.claims?.last_name].filter(Boolean).join(" ") || email;
       await storage.updateAppUserOnLogin(appUser.id, name);
 
@@ -132,10 +147,79 @@ export async function registerRoutes(
         name: appUser.name,
         role: appUser.role,
         status: appUser.status,
+        mustChangePassword: appUser.mustChangePassword,
         profileImageUrl: user.claims?.profile_image_url ?? null,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/account/change-password", async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const user = req.user as any;
+      const email = user?.claims?.email;
+
+      if (!email) {
+        return res.status(401).json({ message: "No autenticado" });
+      }
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "La contraseña actual y la nueva contraseña son requeridas" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "La nueva contraseña debe tener al menos 8 caracteres" });
+      }
+
+      const appUser = await storage.getAppUser(email);
+      if (!appUser || !appUser.password) {
+        return res.status(401).json({ message: "Usuario no encontrado o credenciales inválidas" });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, appUser.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: "La contraseña actual es incorrecta" });
+      }
+
+      await updateUserPassword(appUser.id, newPassword, req.sessionID);
+
+      res.json({ success: true, message: "Contraseña actualizada exitosamente" });
+    } catch (error: any) {
+      console.error("Error al cambiar contraseña:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  });
+
+  app.patch("/api/account/profile", async (req, res) => {
+    try {
+      const { name } = req.body;
+      const user = req.user as any;
+
+      if (!user || !user.id) {
+        return res.status(401).json({ message: "No autenticado" });
+      }
+
+      if (typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "El nombre es requerido y no puede estar vacío" });
+      }
+
+      const updatedUser = await storage.updateAppUserName(user.id, name.trim());
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        status: updatedUser.status,
+      });
+    } catch (error: any) {
+      console.error("Error al actualizar perfil:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
     }
   });
 
@@ -148,71 +232,93 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/app-users/invite", requireAdmin, async (req, res) => {
+  app.post("/api/admin/users/:id/reset-password", requireAdmin, async (req, res) => {
     try {
-      const { email } = req.body;
-      if (!email || typeof email !== "string") {
-        return res.status(400).json({ error: "Email requerido" });
-      }
-
-      const trimmedEmail = email.trim().toLowerCase();
-
-      const existing = await storage.getAppUser(trimmedEmail);
-      if (existing) {
-        return res.status(409).json({ error: "Este email ya tiene acceso o invitación" });
+      const { id } = req.params;
+      const targetUser = await storage.getAppUserById(id);
+      if (!targetUser) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
       }
 
       const currentUser = req.user as any;
-      const invitedByEmail = currentUser.claims?.email;
-      const invitedByAppUser = await storage.getAppUser(invitedByEmail);
-      const invitedByName = invitedByAppUser?.name || invitedByEmail;
+      const currentEmail = currentUser.claims?.email;
+      if (targetUser.email === currentEmail) {
+        return res.status(400).json({ message: "No puedes restablecer tu propia contraseña por esta vía" });
+      }
 
-      const newUser = await storage.createAppUser({
-        email: trimmedEmail,
-        role: "user",
-        status: "invited",
-        invitedBy: invitedByEmail,
-      });
+      // Generar clave temporal criptográficamente segura (10-12 caracteres)
+      // Excluyendo caracteres ambiguos: l, 1, o, O, 0, I, etc.
+      const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let temporaryPassword = "";
+      const bytes = crypto.randomBytes(10);
+      for (let i = 0; i < 10; i++) {
+        temporaryPassword += chars[bytes[i] % chars.length];
+      }
 
-      const appUrl = `${req.protocol}://${req.hostname}`;
-      const emailResult = await sendInvitationEmail({
-        toEmail: trimmedEmail,
-        invitedByName: invitedByName || "Un administrador",
-        appUrl,
-      });
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+      await storage.resetAppUserPassword(targetUser.id, hashedPassword);
 
-      res.json({
-        user: newUser,
-        emailSent: emailResult.sent,
-        inviteLink: appUrl,
-      });
+      // Invalidar todas las sesiones activas del usuario reseteado
+      const pattern = `%"user":"${targetUser.id}"%`;
+      try {
+        await db.execute(sql`DELETE FROM sessions WHERE data LIKE ${pattern}`);
+      } catch (err) {
+        console.error("Error al invalidar sesiones post-reset:", err);
+      }
+
+      res.json({ temporaryPassword });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("Error al restablecer contraseña:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
     }
   });
 
-  app.post("/api/app-users/:id/resend-invite", requireAdmin, async (req, res) => {
+  app.post("/api/admin/users", requireAdmin, async (req, res) => {
     try {
-      const users = await storage.getAllAppUsers();
-      const user = users.find((u) => u.id === req.params.id);
-      if (!user) {
-        return res.status(404).json({ error: "Usuario no encontrado" });
+      const { email, name, role } = req.body;
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Email requerido" });
+      }
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "Nombre requerido" });
+      }
+      if (!role || !["user", "admin"].includes(role)) {
+        return res.status(400).json({ error: "Rol inválido o requerido" });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      const existing = await storage.getAppUser(trimmedEmail);
+      if (existing) {
+        return res.status(409).json({ error: "Este email ya está registrado" });
       }
 
       const currentUser = req.user as any;
       const invitedByEmail = currentUser.claims?.email;
-      const invitedByAppUser = await storage.getAppUser(invitedByEmail);
-      const invitedByName = invitedByAppUser?.name || invitedByEmail;
 
-      const appUrl = `${req.protocol}://${req.hostname}`;
-      const emailResult = await sendInvitationEmail({
-        toEmail: user.email,
-        invitedByName: invitedByName || "Un administrador",
-        appUrl,
+      // Generar clave temporal criptográficamente segura (10 caracteres)
+      // Excluyendo caracteres ambiguos: l, 1, o, O, 0, I, etc.
+      const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let temporaryPassword = "";
+      const bytes = crypto.randomBytes(10);
+      for (let i = 0; i < 10; i++) {
+        temporaryPassword += chars[bytes[i] % chars.length];
+      }
+
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+      const newUser = await storage.createAppUser({
+        email: trimmedEmail,
+        name: name.trim(),
+        role,
+        status: "active",
+        invitedBy: invitedByEmail,
+        password: hashedPassword,
+        mustChangePassword: 1,
       });
 
-      res.json({ emailSent: emailResult.sent, inviteLink: appUrl });
+      res.json({ user: newUser, temporaryPassword });
     } catch (error: any) {
+      console.error("Error al crear usuario:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -242,11 +348,14 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/app-users/:id/role", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
     try {
-      const { role } = req.body;
+      const { name, role } = req.body;
       if (!role || !["admin", "user"].includes(role)) {
         return res.status(400).json({ error: "Rol inválido" });
+      }
+      if (typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ error: "Nombre inválido" });
       }
 
       const currentUser = req.user as any;
@@ -256,11 +365,11 @@ export async function registerRoutes(
       if (!targetUser) {
         return res.status(404).json({ error: "Usuario no encontrado" });
       }
-      if (targetUser.email === currentEmail) {
+      if (targetUser.email === currentEmail && role !== targetUser.role) {
         return res.status(400).json({ error: "No puedes modificar tu propio rol" });
       }
 
-      const updated = await storage.updateAppUserRole(req.params.id as string, role);
+      const updated = await storage.updateAppUserByAdmin(req.params.id as string, name.trim(), role);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
