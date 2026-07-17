@@ -263,71 +263,52 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/app-users/invite", requireAdmin, async (req, res) => {
+  app.post("/api/admin/users", requireAdmin, async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, name, role } = req.body;
       if (!email || typeof email !== "string") {
         return res.status(400).json({ error: "Email requerido" });
       }
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "Nombre requerido" });
+      }
+      if (!role || !["user", "admin"].includes(role)) {
+        return res.status(400).json({ error: "Rol inválido o requerido" });
+      }
 
       const trimmedEmail = email.trim().toLowerCase();
-
       const existing = await storage.getAppUser(trimmedEmail);
       if (existing) {
-        return res.status(409).json({ error: "Este email ya tiene acceso o invitación" });
+        return res.status(409).json({ error: "Este email ya está registrado" });
       }
 
       const currentUser = req.user as any;
       const invitedByEmail = currentUser.claims?.email;
-      const invitedByAppUser = await storage.getAppUser(invitedByEmail);
-      const invitedByName = invitedByAppUser?.name || invitedByEmail;
+
+      // Generar clave temporal criptográficamente segura (10 caracteres)
+      // Excluyendo caracteres ambiguos: l, 1, o, O, 0, I, etc.
+      const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let temporaryPassword = "";
+      const bytes = crypto.randomBytes(10);
+      for (let i = 0; i < 10; i++) {
+        temporaryPassword += chars[bytes[i] % chars.length];
+      }
+
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
       const newUser = await storage.createAppUser({
         email: trimmedEmail,
-        role: "user",
-        status: "invited",
+        name: name.trim(),
+        role,
+        status: "active",
         invitedBy: invitedByEmail,
+        password: hashedPassword,
+        mustChangePassword: 1,
       });
 
-      const appUrl = `${req.protocol}://${req.hostname}`;
-      const emailResult = await sendInvitationEmail({
-        toEmail: trimmedEmail,
-        invitedByName: invitedByName || "Un administrador",
-        appUrl,
-      });
-
-      res.json({
-        user: newUser,
-        emailSent: emailResult.sent,
-        inviteLink: appUrl,
-      });
+      res.json({ user: newUser, temporaryPassword });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/app-users/:id/resend-invite", requireAdmin, async (req, res) => {
-    try {
-      const users = await storage.getAllAppUsers();
-      const user = users.find((u) => u.id === req.params.id);
-      if (!user) {
-        return res.status(404).json({ error: "Usuario no encontrado" });
-      }
-
-      const currentUser = req.user as any;
-      const invitedByEmail = currentUser.claims?.email;
-      const invitedByAppUser = await storage.getAppUser(invitedByEmail);
-      const invitedByName = invitedByAppUser?.name || invitedByEmail;
-
-      const appUrl = `${req.protocol}://${req.hostname}`;
-      const emailResult = await sendInvitationEmail({
-        toEmail: user.email,
-        invitedByName: invitedByName || "Un administrador",
-        appUrl,
-      });
-
-      res.json({ emailSent: emailResult.sent, inviteLink: appUrl });
-    } catch (error: any) {
+      console.error("Error al crear usuario:", error);
       res.status(500).json({ error: error.message });
     }
   });

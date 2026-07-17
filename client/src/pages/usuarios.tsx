@@ -78,6 +78,8 @@ export default function UsuariosPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState<string>("user");
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const [editUser, setEditUser] = useState<AppUser | null>(null);
@@ -100,23 +102,28 @@ export default function UsuariosPage() {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const res = await fetch("/api/app-users/invite", {
+    mutationFn: async (data: { email: string; name: string; role: string }) => {
+      const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(data),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Error al invitar");
+        throw new Error(err.error || "Error al agregar usuario");
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/app-users"] });
-      toast({ title: "Usuario agregado", description: `${inviteEmail} ahora tiene acceso a la plataforma` });
+      setTempPasswordUser(data.user);
+      setTempPassword(data.temporaryPassword);
+      setTempOpen(true);
+      toast({ title: "Usuario agregado", description: "El usuario ha sido creado con clave temporal" });
       setInviteOpen(false);
       setInviteEmail("");
+      setInviteName("");
+      setInviteRole("user");
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -233,7 +240,7 @@ export default function UsuariosPage() {
           </div>
         </div>
 
-        <Dialog open={inviteOpen} onOpenChange={(open) => { if (!open) { setInviteOpen(false); setInviteEmail(""); } else setInviteOpen(true); }}>
+        <Dialog open={inviteOpen} onOpenChange={(open) => { if (!open) { setInviteOpen(false); setInviteEmail(""); setInviteName(""); setInviteRole("user"); } else setInviteOpen(true); }}>
           <DialogTrigger asChild>
             <Button data-testid="button-invite-user" className="gap-2">
               <UserPlus className="h-4 w-4" />
@@ -244,29 +251,53 @@ export default function UsuariosPage() {
             <DialogHeader>
               <DialogTitle>Agregar usuario</DialogTitle>
               <DialogDescription>
-                Ingresa el email de Google del usuario. Podrá iniciar sesión de inmediato con su cuenta Google.
+                Crea un nuevo usuario en la plataforma. Se le generará una clave temporal que deberá cambiar al iniciar sesión.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-2">
-              <Input
-                type="email"
-                placeholder="correo@gmail.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                data-testid="input-invite-email"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && inviteEmail) inviteMutation.mutate(inviteEmail);
-                }}
-              />
+            <div className="py-2 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-name">Nombre</Label>
+                <Input
+                  id="invite-name"
+                  type="text"
+                  placeholder="Nombre del usuario"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  data-testid="input-invite-name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-email">Correo Electrónico</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  data-testid="input-invite-email"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-role">Rol</Label>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger id="invite-role" data-testid="select-invite-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuario</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setInviteOpen(false); setInviteEmail(""); }}>Cancelar</Button>
+              <Button variant="outline" onClick={() => { setInviteOpen(false); setInviteEmail(""); setInviteName(""); setInviteRole("user"); }}>Cancelar</Button>
               <Button
-                onClick={() => inviteMutation.mutate(inviteEmail)}
-                disabled={!inviteEmail || inviteMutation.isPending}
+                onClick={() => inviteMutation.mutate({ email: inviteEmail, name: inviteName, role: inviteRole })}
+                disabled={!inviteEmail || !inviteName || inviteMutation.isPending}
                 data-testid="button-confirm-invite"
               >
-                {inviteMutation.isPending ? "Guardando..." : "Agregar"}
+                {inviteMutation.isPending ? "Creando..." : "Crear Usuario"}
               </Button>
             </DialogFooter>
           </DialogContent>
