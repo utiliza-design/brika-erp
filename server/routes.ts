@@ -14,6 +14,8 @@ import crypto from "crypto";
 import { sendInvitationEmail, sendEmail } from "./email";
 import { isConfigured as isBsaleConfigured, syncVentas, syncCobranza, syncFactCompras, fetchBsaleStock } from "./bsale";
 import { cacheGet, cacheSet, cacheInvalidateAll, cacheInvalidatePrefix } from "./cache";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 type DataRow = Record<string, unknown> & { __deleted?: boolean };
 
@@ -181,7 +183,7 @@ export async function registerRoutes(
         return res.status(401).json({ message: "La contraseña actual es incorrecta" });
       }
 
-      await updateUserPassword(appUser.id, newPassword);
+      await updateUserPassword(appUser.id, newPassword, req.sessionID);
 
       res.json({ success: true, message: "Contraseña actualizada exitosamente" });
     } catch (error: any) {
@@ -255,6 +257,14 @@ export async function registerRoutes(
 
       const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
       await storage.resetAppUserPassword(targetUser.id, hashedPassword);
+
+      // Invalidar todas las sesiones activas del usuario reseteado
+      const pattern = `%"user":"${targetUser.id}"%`;
+      try {
+        await db.execute(sql`DELETE FROM sessions WHERE data LIKE ${pattern}`);
+      } catch (err) {
+        console.error("Error al invalidar sesiones post-reset:", err);
+      }
 
       res.json({ temporaryPassword });
     } catch (error: any) {
@@ -338,11 +348,14 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/app-users/:id/role", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
     try {
-      const { role } = req.body;
+      const { name, role } = req.body;
       if (!role || !["admin", "user"].includes(role)) {
         return res.status(400).json({ error: "Rol inválido" });
+      }
+      if (typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ error: "Nombre inválido" });
       }
 
       const currentUser = req.user as any;
@@ -352,11 +365,11 @@ export async function registerRoutes(
       if (!targetUser) {
         return res.status(404).json({ error: "Usuario no encontrado" });
       }
-      if (targetUser.email === currentEmail) {
+      if (targetUser.email === currentEmail && role !== targetUser.role) {
         return res.status(400).json({ error: "No puedes modificar tu propio rol" });
       }
 
-      const updated = await storage.updateAppUserRole(req.params.id as string, role);
+      const updated = await storage.updateAppUserByAdmin(req.params.id as string, name.trim(), role);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

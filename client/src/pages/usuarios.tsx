@@ -83,6 +83,7 @@ export default function UsuariosPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const [editUser, setEditUser] = useState<AppUser | null>(null);
+  const [editName, setEditName] = useState<string>("");
   const [editRole, setEditRole] = useState<string>("user");
   const [editOpen, setEditOpen] = useState(false);
 
@@ -153,23 +154,24 @@ export default function UsuariosPage() {
   });
 
   const roleMutation = useMutation({
-    mutationFn: async ({ id, role }: { id: string; role: string }) => {
-      const res = await fetch(`/api/app-users/${id}/role`, {
+    mutationFn: async ({ id, name, role }: { id: string; name: string; role: string }) => {
+      const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ name, role }),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Error al actualizar rol");
+        throw new Error(err.error || "Error al actualizar usuario");
       }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/app-users"] });
-      toast({ title: "Rol actualizado" });
+      toast({ title: "Usuario actualizado" });
       setEditOpen(false);
       setEditUser(null);
+      setEditName("");
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -225,6 +227,7 @@ export default function UsuariosPage() {
 
   const openEdit = (user: AppUser) => {
     setEditUser(user);
+    setEditName(user.name || "");
     setEditRole(user.role);
     setEditOpen(true);
   };
@@ -304,18 +307,29 @@ export default function UsuariosPage() {
         </Dialog>
       </div>
 
-      <Dialog open={editOpen} onOpenChange={(open) => { if (!open) { setEditOpen(false); setEditUser(null); } }}>
+      <Dialog open={editOpen} onOpenChange={(open) => { if (!open) { setEditOpen(false); setEditUser(null); setEditName(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar usuario</DialogTitle>
             <DialogDescription>
-              Cambia el rol de <strong>{editUser?.name || editUser?.email}</strong>.
+              Modifica la información de <strong>{editUser?.name || editUser?.email}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2 space-y-3">
+          <div className="py-2 space-y-4">
             <div className="space-y-1.5">
               <Label>Email</Label>
               <p className="text-sm text-muted-foreground">{editUser?.email}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-name">Nombre</Label>
+              <Input
+                id="edit-name"
+                type="text"
+                placeholder="Nombre del usuario"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                data-testid="input-edit-name"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-role">Rol</Label>
@@ -336,10 +350,10 @@ export default function UsuariosPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setEditOpen(false); setEditUser(null); }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setEditOpen(false); setEditUser(null); setEditName(""); }}>Cancelar</Button>
             <Button
-              onClick={() => editUser && roleMutation.mutate({ id: editUser.id, role: editRole })}
-              disabled={!editUser || roleMutation.isPending || editRole === editUser?.role}
+              onClick={() => editUser && roleMutation.mutate({ id: editUser.id, name: editName, role: editRole })}
+              disabled={!editUser || roleMutation.isPending || (editRole === editUser?.role && editName === (editUser?.name || ""))}
               data-testid="button-confirm-edit-role"
             >
               {roleMutation.isPending ? "Guardando..." : "Guardar"}

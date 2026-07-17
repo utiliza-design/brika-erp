@@ -4,8 +4,9 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import bcrypt from "bcrypt";
 import MySQLStoreFactory from "express-mysql-session";
-import { pool } from "../../db";
+import { pool, db } from "../../db";
 import { storage } from "../../storage";
+import { sql } from "drizzle-orm";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
@@ -161,10 +162,31 @@ export const isAuthenticated: RequestHandler = (req, res, next) => {
  * tras validar la contraseña actual en un cambio voluntario, o tras autenticar con
  * una clave temporal en un primer inicio de sesión forzado).
  */
-export async function updateUserPassword(userId: string, newPasswordPlain: string): Promise<void> {
+export async function updateUserPassword(
+  userId: string,
+  newPasswordPlain: string,
+  currentSessionId?: string
+): Promise<void> {
   const hashedPassword = await bcrypt.hash(newPasswordPlain, 10);
   await storage.updateAppUserPassword(userId, hashedPassword);
 
-  // TODO: Tarea 4.5 - Invalidar todas las demás sesiones activas de este usuario.
+  // Tarea 4.5 - Invalidar todas las demás sesiones activas de este usuario.
+  const pattern = `%"user":"${userId}"%`;
+  try {
+    if (currentSessionId) {
+      await db.execute(sql`
+        DELETE FROM sessions 
+        WHERE session_id <> ${currentSessionId}
+          AND data LIKE ${pattern}
+      `);
+    } else {
+      await db.execute(sql`
+        DELETE FROM sessions 
+        WHERE data LIKE ${pattern}
+      `);
+    }
+  } catch (error) {
+    console.error("Error al invalidar otras sesiones:", error);
+  }
 }
 
