@@ -72,7 +72,9 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser(async (id: string, cb) => {
     try {
       const appUser = await storage.getAppUserById(id);
-      if (!appUser) return cb(new Error("User not found"));
+      // Si el usuario no existe (usuario eliminado o base recreada), la sesión es inválida
+      // y se debe tratar como no-autenticado en lugar de lanzar un error 500 de infraestructura.
+      if (!appUser) return cb(null, false);
 
       // PUENTE claims: inyectamos claims { email, first_name } por compatibilidad
       // heredada del sistema de autenticación de Replit Auth para no forzar una refactorización
