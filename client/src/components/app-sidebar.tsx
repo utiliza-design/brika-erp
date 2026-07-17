@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AppUser {
   id: string;
@@ -46,6 +47,8 @@ function getInitials(name: string | null, email: string): string {
 
 export function AppSidebar({ user }: { user: AppUser }) {
   const [location] = useLocation();
+  const { logout, isLoggingOut } = useAuth();
+
 
   const allModules = user.role === "admin"
     ? [...modules, { title: "Usuarios", url: "/usuarios", icon: Users }]
@@ -109,11 +112,12 @@ export function AppSidebar({ user }: { user: AppUser }) {
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-          onClick={() => { window.location.href = "/api/logout"; }}
+          onClick={() => logout()}
+          disabled={isLoggingOut}
           data-testid="button-logout"
         >
           <LogOut className="h-4 w-4" />
-          Cerrar sesión
+          {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
         </Button>
       </SidebarFooter>
     </Sidebar>
