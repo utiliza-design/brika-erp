@@ -1,7 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 function redirectToLogin() {
-  window.location.href = "/api/login";
+  window.location.href = "/login";
 }
 
 async function throwIfResNotOk(res: Response) {
