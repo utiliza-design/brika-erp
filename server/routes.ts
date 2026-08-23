@@ -13,9 +13,11 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { sendInvitationEmail, sendEmail } from "./email";
 import { isConfigured as isBsaleConfigured, syncVentas, syncCobranza, syncFactCompras, fetchBsaleStock } from "./bsale";
-import { cacheGet, cacheSet, cacheInvalidateAll, cacheInvalidatePrefix } from "./cache";
+import { cacheGet, cacheSet, cacheInvalidateAll, cacheInvalidatePrefix, cachePatchArrayItem } from "./cache";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { computeFacturaEstado } from "./db-helpers";
+export { computeFacturaEstado };
 
 type DataRow = Record<string, unknown> & { __deleted?: boolean };
 
@@ -3102,14 +3104,7 @@ export async function registerRoutes(
               : {}),
           }));
 
-          let estado: string;
-          if (savedReview) {
-            estado = savedReview.estado;
-          } else if (facturaPropuestasArr.length > 0 || matchCartola) {
-            estado = "propuesto";
-          } else {
-            estado = "pendiente";
-          }
+          const estado = computeFacturaEstado(savedReview, facturaPropuestasArr.length, matchCartola);
 
           const rutClienteRaw = String(row["Rut Cliente"] ?? "").trim();
           const clienteNameRaw = String(row["Cliente"] ?? "").trim();
@@ -3180,8 +3175,15 @@ export async function registerRoutes(
         if (firstMovimiento) syncedMovementKey = firstMovimiento.cartolaMovementKey;
       }
       const review = await storage.upsertFacturaReview(facturaKey, estado, syncedMovementKey);
-      cacheInvalidatePrefix("fr:");
-      cacheInvalidatePrefix("cc:");
+      
+      // Patch quirúrgico sobre "fr:main"
+      cachePatchArrayItem<any>("fr:main", (item) => item.facturaKey === facturaKey, (item) => {
+        return {
+          ...item,
+          estado: computeFacturaEstado(review, (item.propuestas ?? []).length, item.matchCartola),
+        };
+      });
+
       res.json(review);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3202,8 +3204,39 @@ export async function registerRoutes(
         return res.status(400).json({ error: "notaManual requerido para tipo nota" });
       }
       const propuesta = await storage.addFacturaPropuesta(facturaKey, tipo, cartolaMovementKey ?? null, notaManual ?? null);
-      cacheInvalidatePrefix("fr:");
-      cacheInvalidatePrefix("cc:");
+
+      // Si es tipo movimiento, buscamos si los movimientos ya están cacheados para enriquecer la propuesta en memoria
+      let movDetail: { fecha?: string; detalle?: string; monto?: number; banco?: string } = {};
+      if (cartolaMovementKey) {
+        const cachedMovs = cacheGet<any[]>("fr:movimientos");
+        const found = cachedMovs?.find(m => m.movementKey === cartolaMovementKey);
+        if (found) {
+          movDetail = { fecha: found.fecha, detalle: found.detalle, monto: found.monto, banco: found.banco };
+        }
+      }
+
+      const propuestaEnriquecida = {
+        id: propuesta.id,
+        tipo: propuesta.tipo,
+        cartolaMovementKey: propuesta.cartolaMovementKey,
+        notaManual: propuesta.notaManual,
+        ...movDetail,
+      };
+
+      // Patch quirúrgico sobre "fr:main"
+      cachePatchArrayItem<any>("fr:main", (item) => item.facturaKey === facturaKey, (item) => {
+        const currentPropuestas = [...(item.propuestas ?? []), propuestaEnriquecida];
+        const savedReview = item.estado === "pagado" ? { estado: "pagado" } : null;
+        return {
+          ...item,
+          propuestas: currentPropuestas,
+          estado: computeFacturaEstado(savedReview, currentPropuestas.length, item.matchCartola),
+        };
+      });
+
+      // Invalida el caché de selección de movimientos si corresponde
+      cacheInvalidatePrefix("fr:movimientos");
+
       res.json(propuesta);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3213,9 +3246,22 @@ export async function registerRoutes(
   app.delete("/api/facturas-revision/:facturaKey/propuestas/:id", async (req, res) => {
     try {
       const id = req.params.id;
+      const facturaKey = decodeURIComponent(req.params.facturaKey);
       await storage.deleteFacturaPropuesta(id);
-      cacheInvalidatePrefix("fr:");
-      cacheInvalidatePrefix("cc:");
+
+      // Patch quirúrgico sobre "fr:main"
+      cachePatchArrayItem<any>("fr:main", (item) => item.facturaKey === facturaKey, (item) => {
+        const currentPropuestas = (item.propuestas ?? []).filter((p: any) => p.id !== id);
+        const savedReview = item.estado === "pagado" ? { estado: "pagado" } : null;
+        return {
+          ...item,
+          propuestas: currentPropuestas,
+          estado: computeFacturaEstado(savedReview, currentPropuestas.length, item.matchCartola),
+        };
+      });
+
+      cacheInvalidatePrefix("fr:movimientos");
+
       res.json({ ok: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3230,8 +3276,20 @@ export async function registerRoutes(
         return res.status(400).json({ error: "cartolaMovementKey requerido" });
       }
       const rejection = await storage.addAutoMatchRejection(facturaKey, cartolaMovementKey);
-      cacheInvalidatePrefix("fr:");
-      cacheInvalidatePrefix("cc:");
+
+      // Patch quirúrgico sobre "fr:main"
+      cachePatchArrayItem<any>("fr:main", (item) => item.facturaKey === facturaKey, (item) => {
+        const currentPropuestas = item.propuestas ?? [];
+        const savedReview = item.estado === "pagado" ? { estado: "pagado" } : null;
+        return {
+          ...item,
+          matchCartola: null,
+          estado: computeFacturaEstado(savedReview, currentPropuestas.length, null),
+        };
+      });
+
+      cacheInvalidatePrefix("fr:movimientos");
+
       res.json(rejection);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
