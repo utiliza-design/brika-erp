@@ -7,6 +7,25 @@ export function hasValidEmail(emails: string[] | null | undefined): boolean {
   return !!emails && emails.some(e => e && e.trim() !== "");
 }
 
+/**
+ * Función pura centralizada para derivar el estado de una factura en Facturas Revisión.
+ * Usada tanto en el cálculo frío de GET /api/facturas-revision como en el patch de mutaciones.
+ */
+export function computeFacturaEstado(
+  savedReview?: { estado: string } | null,
+  propuestasCount: number = 0,
+  matchCartola: unknown = null
+): "pagado" | "pendiente" | "propuesto" {
+  if (savedReview) {
+    return savedReview.estado as "pagado" | "pendiente" | "propuesto";
+  }
+  if (propuestasCount > 0 || matchCartola) {
+    return "propuesto";
+  }
+  return "pendiente";
+}
+
+
 export async function insertAndFetch<
   TTable extends MySqlTable,
   TInsert extends InferInsertModel<TTable>
